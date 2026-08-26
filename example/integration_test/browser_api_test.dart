@@ -72,6 +72,44 @@ void main() {
     await closed.future.timeout(const Duration(seconds: 20));
   });
 
+  testWidgets('JS-редирект на кастомную схему → onSchemeRedirect', (tester) async {
+    final browser = AuthNativeBrowser();
+    final schemeUrl = Completer<Uri>();
+    final closed = Completer<void>();
+
+    // Страница с inline-скриптом, который сразу переходит на кастомную
+    // схему: навигация идёт через decidePolicyFor (iOS) и
+    // shouldOverrideUrlLoading (Android) — как серверный редирект.
+    final dataUrl = Uri.dataFromString(
+      "<script>location.href='demoapp://callback?code=js1';</script>",
+      mimeType: 'text/html',
+    );
+
+    await browser.open(
+      AuthBrowserOpenRequest(
+        url: dataUrl,
+        userAgent: 'integration-test-ua',
+        onSchemeRedirect: (url) {
+          if (!schemeUrl.isCompleted) {
+            schemeUrl.complete(url);
+          }
+        },
+        onClosed: () {
+          if (!closed.isCompleted) {
+            closed.complete();
+          }
+        },
+      ),
+    );
+
+    final redirected = await schemeUrl.future.timeout(const Duration(seconds: 15));
+    expect(redirected.toString(), startsWith('demoapp://'));
+    expect(redirected.toString(), contains('code=js1'));
+
+    await browser.close();
+    await closed.future.timeout(const Duration(seconds: 20));
+  });
+
   testWidgets('initialCookies + reloadWithCookies → два onLoadStop', (tester) async {
     final browser = AuthNativeBrowser();
     final stops = <Uri>[];

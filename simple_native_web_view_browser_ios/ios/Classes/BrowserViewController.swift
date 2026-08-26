@@ -345,6 +345,26 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
   // MARK: - WKNavigationDelegate
 
+  /// Перехватывает навигацию на кастомную схему на любом шаге навигации
+  /// (серверные редиректы, клики по ссылкам, JS-переходы): отдаёт адрес
+  /// приложению и отменяет навигацию. Без перехвата WKWebView может
+  /// молча оборвать такую навигацию без вызова didFailProvisionalNavigation.
+  func webView(
+    _ webView: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
+    if let scheme = navigationAction.request.url?.scheme?.lowercased(),
+       !Self.isLoadableScheme(scheme) {
+      channel?.invokeMethod(
+        "onSchemeRedirect",
+        arguments: navigationAction.request.url?.absoluteString)
+      decisionHandler(.cancel)
+      return
+    }
+    decisionHandler(.allow)
+  }
+
   /// Состояние кнопок и адресной строки обновляем сразу после начала
   /// навигации: история уже содержит новую запись, «Назад»/«Вперёд»
   /// должны стать доступными до завершения загрузки.
