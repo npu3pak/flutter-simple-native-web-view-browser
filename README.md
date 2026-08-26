@@ -274,21 +274,21 @@ void _checkUrl(Uri url) {
 
 Светлая тема:
 
-![iOS, светлая тема](docs/screenshots/ios_example_light.jpg)
+![iOS, светлая тема](docs/screenshots/example_ios_light.jpg)
 
 Тёмная тема:
 
-![iOS, тёмная тема](docs/screenshots/ios_example_dark.jpg)
+![iOS, тёмная тема](docs/screenshots/example_ios_dark.jpg)
 
 ### Android
 
 Светлая тема:
 
-![Android, светлая тема](docs/screenshots/android_example_light.jpg)
+![Android, светлая тема](docs/screenshots/example_android_light.jpg)
 
 Тёмная тема:
 
-![Android, тёмная тема](docs/screenshots/android_example_dark.jpg)
+![Android, тёмная тема](docs/screenshots/example_android_dark.jpg)
 
 ## Как запустить интеграционные тесты
 
