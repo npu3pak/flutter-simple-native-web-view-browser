@@ -77,6 +77,21 @@ class BrowserActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): Boolean {
+                val urlString = request?.url?.toString() ?: return false
+                if (!isLoadableScheme(Uri.parse(urlString).scheme)) {
+                    // Кастомная схема: отдаём приложению и не загружаем —
+                    // иначе WebView покажет системный экран ошибки
+                    // ERR_UNKNOWN_URL_SCHEME.
+                    SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", urlString)
+                    return true
+                }
+                return false
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 updateChromeState()
             }
