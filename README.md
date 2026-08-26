@@ -266,6 +266,30 @@ void _checkUrl(Uri url) {
 
 Кнопки «Назад» и «Вперёд» становятся доступными сразу после начала загрузки новой страницы, а не после её завершения.
 
+## Скриншоты
+
+Страница `https://example.com`, открытая в браузере плагина.
+
+### iOS
+
+Светлая тема:
+
+![iOS, светлая тема](docs/screenshots/ios_example_light.jpg)
+
+Тёмная тема:
+
+![iOS, тёмная тема](docs/screenshots/ios_example_dark.jpg)
+
+### Android
+
+Светлая тема:
+
+![Android, светлая тема](docs/screenshots/android_example_light.jpg)
+
+Тёмная тема:
+
+![Android, тёмная тема](docs/screenshots/android_example_dark.jpg)
+
 ## Как запустить интеграционные тесты
 
 Интеграционные тесты находятся в каталоге `example/integration_test`. Они запускаются на подключённом устройстве, симуляторе iOS или эмуляторе Android.
