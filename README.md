@@ -270,25 +270,10 @@ void _checkUrl(Uri url) {
 
 Страница `https://example.com`, открытая в браузере плагина.
 
-### iOS
-
-Светлая тема:
-
-![iOS, светлая тема](docs/screenshots/example_ios_light.jpg)
-
-Тёмная тема:
-
-![iOS, тёмная тема](docs/screenshots/example_ios_dark.jpg)
-
-### Android
-
-Светлая тема:
-
-![Android, светлая тема](docs/screenshots/example_android_light.jpg)
-
-Тёмная тема:
-
-![Android, тёмная тема](docs/screenshots/example_android_dark.jpg)
+| Платформа | Светлая тема | Тёмная тема |
+|---|---|---|
+| iOS | ![iOS, светлая тема](docs/screenshots/example_ios_light.jpg) | ![iOS, тёмная тема](docs/screenshots/example_ios_dark.jpg) |
+| Android | ![Android, светлая тема](docs/screenshots/example_android_light.jpg) | ![Android, тёмная тема](docs/screenshots/example_android_dark.jpg) |
 
 ## Как запустить интеграционные тесты
 
