@@ -98,6 +98,11 @@ class MethodChannelSimpleNativeWebViewBrowser
         if (url != null) {
           request?.onLoadError?.call(url);
         }
+      case 'onSchemeRedirect':
+        final url = Uri.tryParse(call.arguments as String? ?? '');
+        if (url != null) {
+          request?.onSchemeRedirect?.call(url);
+        }
       case 'onClosed':
         _activeRequest = null;
         request?.onClosed?.call();

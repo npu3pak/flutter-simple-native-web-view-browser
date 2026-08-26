@@ -4,6 +4,10 @@ import 'auth_browser_url_bar_mode.dart';
 /// Обработчик ошибки загрузки страницы.
 typedef AuthBrowserOnLoadError = void Function(Uri url);
 
+/// Обработчик попытки открыть адрес с кастомной схемой
+/// (например, myapp://...). Такие адреса не загружаются в браузере.
+typedef AuthBrowserOnSchemeRedirect = void Function(Uri url);
+
 /// Обработчик успешного завершения загрузки страницы.
 typedef AuthBrowserOnLoadStop = void Function(Uri url);
 
@@ -30,6 +34,9 @@ class AuthBrowserOpenRequest {
   /// Обработчик ошибки загрузки страницы.
   final AuthBrowserOnLoadError? onLoadError;
 
+  /// Обработчик попытки открыть адрес с кастомной схемой.
+  final AuthBrowserOnSchemeRedirect? onSchemeRedirect;
+
   /// Обработчик успешного завершения загрузки страницы.
   final AuthBrowserOnLoadStop? onLoadStop;
 
@@ -43,6 +50,7 @@ class AuthBrowserOpenRequest {
     this.initialCookies = const [],
     this.urlBarMode = AuthBrowserUrlBarMode.hidden,
     this.onLoadError,
+    this.onSchemeRedirect,
     this.onLoadStop,
     this.onClosed,
   });

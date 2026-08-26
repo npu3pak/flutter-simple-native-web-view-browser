@@ -38,8 +38,8 @@ void main() {
     }
 
     final finalTexts = _logTexts(tester, logVisible);
-    expect(finalTexts.any((t) => t.contains('[onLoadError]')), isTrue,
-        reason: 'ожидался onLoadError в журнале: $finalTexts');
+    expect(finalTexts.any((t) => t.contains('[onSchemeRedirect]')), isTrue,
+        reason: 'ожидался onSchemeRedirect в журнале: $finalTexts');
     expect(finalTexts.any((t) => t.contains('[redirect]')), isTrue,
         reason: 'ожидалось распознавание редиректа: $finalTexts');
     expect(finalTexts.any((t) => t.contains('[onClosed]')), isTrue,

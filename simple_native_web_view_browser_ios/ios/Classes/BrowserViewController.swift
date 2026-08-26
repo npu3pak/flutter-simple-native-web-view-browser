@@ -129,13 +129,19 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   /// Схемы, которые WebView может загрузить. Кастомные схемы (например,
   /// demoapp://...) загрузить нельзя: при попытке загрузки WKWebView может
   /// вообще не начать навигацию, поэтому такое событие отдаём приложению
-  /// напрямую как ошибку загрузки.
-  private func loadInitialPage() {    guard let scheme = url.scheme?.lowercased(),
-          ["http", "https", "data", "about", "file", "blob"].contains(scheme) else {
-      channel?.invokeMethod("onLoadError", arguments: url.absoluteString)
+  /// напрямую как перенаправление на кастомную схему.
+  private func loadInitialPage() {
+    guard let scheme = url.scheme?.lowercased(),
+          Self.isLoadableScheme(scheme) else {
+      channel?.invokeMethod("onSchemeRedirect", arguments: url.absoluteString)
       return
     }
     webView.load(URLRequest(url: url))
+  }
+
+  /// Можно ли загрузить адрес с указанной схемой в WebView.
+  private static func isLoadableScheme(_ scheme: String) -> Bool {
+    ["http", "https", "data", "about", "file", "blob"].contains(scheme)
   }
 
   // MARK: - Хром
@@ -378,6 +384,16 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       ?? (nsError.userInfo[NSURLErrorFailingURLStringErrorKey] as? String)
         .flatMap(URL.init(string:))
       ?? webView.url
+
+    // Кастомная схема (не загружаемая WebView) — это перенаправление
+    // в приложение, а не ошибка загрузки.
+    if let scheme = failingUrl?.scheme?.lowercased(),
+       !Self.isLoadableScheme(scheme) {
+      channel?.invokeMethod(
+        "onSchemeRedirect",
+        arguments: failingUrl?.absoluteString)
+      return
+    }
     channel?.invokeMethod(
       "onLoadError",
       arguments: failingUrl?.absoluteString)

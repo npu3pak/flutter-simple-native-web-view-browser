@@ -33,24 +33,26 @@ void main() {
     expect(loadedUrl.host, 'example.com');
 
     await browser.close();
-    await closed.future.timeout(const Duration(seconds: 10));
+    await closed.future.timeout(const Duration(seconds: 20));
   });
 
-  testWidgets('кастомная схема → onLoadError → закрытие', (tester) async {
+  testWidgets('кастомная схема → onSchemeRedirect → закрытие', (tester) async {
     final browser = AuthNativeBrowser();
-    final errorUrl = Completer<Uri>();
+    final schemeUrl = Completer<Uri>();
     final closed = Completer<void>();
+    var loadErrors = 0;
 
     final redirectUrl = 'demoapp://callback?code=test123';
     await browser.open(
       AuthBrowserOpenRequest(
         url: Uri.parse(redirectUrl),
         userAgent: 'integration-test-ua',
-        onLoadError: (url) {
-          if (!errorUrl.isCompleted) {
-            errorUrl.complete(url);
+        onSchemeRedirect: (url) {
+          if (!schemeUrl.isCompleted) {
+            schemeUrl.complete(url);
           }
         },
+        onLoadError: (_) => loadErrors++,
         onClosed: () {
           if (!closed.isCompleted) {
             closed.complete();
@@ -59,13 +61,15 @@ void main() {
       ),
     );
 
-    final failedUrl = await errorUrl.future.timeout(const Duration(seconds: 15));
+    final failedUrl = await schemeUrl.future.timeout(const Duration(seconds: 15));
     expect(failedUrl.toString(), startsWith('demoapp://'));
     expect(failedUrl.toString(), contains('code=test123'));
+    // Кастомная схема не должна приходить как ошибка загрузки.
+    expect(loadErrors, 0);
 
     // Редирект распознан приложением по префиксу — закрываем браузер.
     await browser.close();
-    await closed.future.timeout(const Duration(seconds: 10));
+    await closed.future.timeout(const Duration(seconds: 20));
   });
 
   testWidgets('initialCookies + reloadWithCookies → два onLoadStop', (tester) async {

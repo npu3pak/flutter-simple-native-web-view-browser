@@ -120,6 +120,7 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
           urlBarMode: _urlBarMode,
           onLoadStop: (u) => _handleUrl(u, 'onLoadStop'),
           onLoadError: (u) => _handleUrl(u, 'onLoadError'),
+          onSchemeRedirect: (u) => _handleUrl(u, 'onSchemeRedirect'),
           onClosed: () {
             _browserOpen = false;
             _addLog('[onClosed]');

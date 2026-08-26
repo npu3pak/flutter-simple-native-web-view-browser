@@ -95,7 +95,11 @@ class BrowserActivity : AppCompatActivity() {
                 // Кастомная схема (например, demoapp://...) не загружается:
                 // ERR_UNKNOWN_URL_SCHEME приходит сюда с адресом редиректа.
                 val failingUrl = request?.url?.toString() ?: url
-                SimpleNativeWebViewBrowserPlugin.sendEvent("onLoadError", failingUrl)
+                if (isLoadableScheme(Uri.parse(failingUrl).scheme)) {
+                    SimpleNativeWebViewBrowserPlugin.sendEvent("onLoadError", failingUrl)
+                } else {
+                    SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", failingUrl)
+                }
             }
         }
 
@@ -243,12 +247,16 @@ class BrowserActivity : AppCompatActivity() {
 
     private fun loadInitialPage() {
         val scheme = Uri.parse(url).scheme?.lowercase()
-        if (scheme !in listOf("http", "https", "data", "about", "file", "blob")) {
-            SimpleNativeWebViewBrowserPlugin.sendEvent("onLoadError", url)
+        if (!isLoadableScheme(scheme)) {
+            SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", url)
             return
         }
         webView.loadUrl(url)
     }
+
+    /** Можно ли загрузить адрес с указанной схемой в WebView. */
+    private fun isLoadableScheme(scheme: String?): Boolean =
+        scheme in listOf("http", "https", "data", "about", "file", "blob")
 
     /** Устанавливает куки и перезагружает текущую страницу. */
     fun reloadWithCookies(cookies: List<Map<String, Any?>>) {

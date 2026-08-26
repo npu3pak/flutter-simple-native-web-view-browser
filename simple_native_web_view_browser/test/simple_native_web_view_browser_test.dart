@@ -102,6 +102,27 @@ void main() {
     expect(closed, isFalse);
   });
 
+  test('onSchemeRedirect маршрутизируется на колбэк', () async {
+    final browser = AuthNativeBrowser();
+    final schemes = <Uri>[];
+    var loadErrors = 0;
+
+    await browser.open(
+      AuthBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        userAgent: 'ua',
+        onSchemeRedirect: schemes.add,
+        onLoadError: (_) => loadErrors++,
+      ),
+    );
+
+    await _sendNativeEvent('onSchemeRedirect', 'myapp://login?code=1');
+    await _sendNativeEvent('onLoadError', 'https://example.com/err');
+
+    expect(schemes, [Uri.parse('myapp://login?code=1')]);
+    expect(loadErrors, 1);
+  });
+
   test('onClosed очищает активный запрос и вызывает колбэк', () async {
     final browser = AuthNativeBrowser();
     var closed = false;
