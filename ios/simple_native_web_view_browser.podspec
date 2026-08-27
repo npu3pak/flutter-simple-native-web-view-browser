@@ -1,13 +1,13 @@
 Pod::Spec.new do |s|
-  s.name             = 'simple_native_web_view_browser_ios'
-  s.version          = '0.3.1'
+  s.name             = 'simple_native_web_view_browser'
+  s.version          = '0.4.0'
   s.summary          = 'Простой нативный браузер для iOS'
   s.description      = <<-DESC
 iOS implementation of simple_native_web_view_browser
                        DESC
-  s.homepage         = 'https://example.com'
+  s.homepage         = 'https://github.com/npu3pak/flutter-simple-native-web-view-browser'
   s.license          = { :file => '../LICENSE' }
-  s.author           = 'simple_native_web_view_browser'
+  s.author           = 'Evgeniy Safronov (evsafronov.personal@gmail.com)'
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'

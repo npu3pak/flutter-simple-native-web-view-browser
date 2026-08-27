@@ -4,13 +4,7 @@
 
 Репозиторий плагина: <https://github.com/npu3pak/flutter-simple-native-web-view-browser>
 
-Плагин состоит из трёх частей:
-
-- `simple_native_web_view_browser` — основная часть, с которой работает приложение;
-- `simple_native_web_view_browser_ios` — реализация для iOS;
-- `simple_native_web_view_browser_android` — реализация для Android.
-
-Платформенные части подключаются автоматически, отдельно их добавлять не нужно.
+Плагин — единый пакет с нативными реализациями для iOS и Android (как часть пакета, они подключаются автоматически).
 
 ## Оглавление
 
@@ -257,8 +251,8 @@ onDownloadStart: (url) {
 
 | Платформа | Светлая тема | Тёмная тема |
 |---|---|---|
-| iOS | ![iOS, светлая тема](docs/screenshots/example_ios_light.jpg) | ![iOS, тёмная тема](docs/screenshots/example_ios_dark.jpg) |
-| Android | ![Android, светлая тема](docs/screenshots/example_android_light.jpg) | ![Android, тёмная тема](docs/screenshots/example_android_dark.jpg) |
+| iOS | ![iOS, светлая тема](doc/screenshots/example_ios_light.jpg) | ![iOS, тёмная тема](doc/screenshots/example_ios_dark.jpg) |
+| Android | ![Android, светлая тема](doc/screenshots/example_android_light.jpg) | ![Android, тёмная тема](doc/screenshots/example_android_dark.jpg) |
 
 ## Пример
 
@@ -419,7 +413,7 @@ flutter test integration_test -d <device-id>
 Проверка анализатором:
 
 ```bash
-flutter analyze   # в каждом из четырёх пакетов: ядро, android, ios, example
+flutter analyze   # в пакете плагина и в example
 ```
 
 ## Известные проблемы

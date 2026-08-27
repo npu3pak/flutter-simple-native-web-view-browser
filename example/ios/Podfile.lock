@@ -2,26 +2,26 @@ PODS:
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
-  - simple_native_web_view_browser_ios (0.1.0):
+  - simple_native_web_view_browser (0.4.0):
     - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
-  - simple_native_web_view_browser_ios (from `.symlinks/plugins/simple_native_web_view_browser_ios/ios`)
+  - simple_native_web_view_browser (from `.symlinks/plugins/simple_native_web_view_browser/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
   integration_test:
     :path: ".symlinks/plugins/integration_test/ios"
-  simple_native_web_view_browser_ios:
-    :path: ".symlinks/plugins/simple_native_web_view_browser_ios/ios"
+  simple_native_web_view_browser:
+    :path: ".symlinks/plugins/simple_native_web_view_browser/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
-  simple_native_web_view_browser_ios: 9565a698ebed561c21caa1e2806a87b5cd2d301a
+  simple_native_web_view_browser: a60c5bb4bbf3c1797dceae355b024e81a51d25f6
 
 PODFILE CHECKSUM: 251cb053df7158f337c0712f2ab29f4e0fa474ce
 

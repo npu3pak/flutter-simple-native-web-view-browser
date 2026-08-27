@@ -9,9 +9,8 @@ import 'simple_browser_open_request.dart';
 import 'simple_browser_reopen_policy.dart';
 
 /// Платформенный интерфейс simple_native_web_view_browser.
-/// Реализации:
-/// - simple_native_web_view_browser_android;
-/// - simple_native_web_view_browser_ios.
+/// Реализация по умолчанию — [MethodChannelSimpleNativeWebViewBrowser]:
+/// нативные реализации (Android/iOS) регистрируются самим плагином.
 abstract class SimpleNativeWebViewBrowserPlatform extends PlatformInterface {
   SimpleNativeWebViewBrowserPlatform() : super(token: _token);
 

@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   simple_native_web_view_browser:
-    path: ../simple_native_web_view_browser
+    path: ..
 
 dev_dependencies:
   flutter_test:
