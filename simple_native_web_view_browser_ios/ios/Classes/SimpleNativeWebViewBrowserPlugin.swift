@@ -150,9 +150,12 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
 
     browserViewController = controller
     topViewController.present(controller, animated: true) { [weak self] in
-      // Если по какой-то причине презентация не началась, контроллер
-      // не должен остаться активной сессией.
-      guard let controller = self?.browserViewController, controller.isBeingPresented else {
+      // Проверка «isBeingPresented» здесь неверна: свойство истинно только
+      // во время транзиции презентации, а completion вызывается после её
+      // завершения. Контроллер представлен, если у него установлен
+      // presentingViewController (отношение появляется сразу при present).
+      guard let controller = self?.browserViewController,
+            controller.presentingViewController != nil else {
         self?.browserViewController = nil
         result(FlutterError(
           code: "present_failed",

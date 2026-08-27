@@ -1,3 +1,11 @@
+## 0.3.1
+
+- Исправление: проверка успешности презентации в completion блоке
+  `present` — `isBeingPresented` заменён на `presentingViewController != nil`
+  (свойство isBeingPresented истинно только во время транзиции). Устранены
+  ложный `present_failed` и потеря событий открытой сессии, что срывало
+  флоу аутентификации.
+
 ## 0.3.0
 
 - Обработчик `onDownloadStart`: WKDownload (iOS 14.5+) и эвристика по
