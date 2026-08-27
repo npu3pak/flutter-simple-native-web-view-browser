@@ -41,10 +41,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('urlBarMode_readOnly')));
     await tester.pump();
 
-    final group = tester.widget<RadioGroup<AuthBrowserUrlBarMode>>(
-      find.byType(RadioGroup<AuthBrowserUrlBarMode>),
+    final group = tester.widget<RadioGroup<SimpleBrowserUrlBarMode>>(
+      find.byType(RadioGroup<SimpleBrowserUrlBarMode>),
     );
-    expect(group.groupValue, AuthBrowserUrlBarMode.readOnly);
+    expect(group.groupValue, SimpleBrowserUrlBarMode.readOnly);
   });
 
   testWidgets('экран содержит журнал событий', (tester) async {

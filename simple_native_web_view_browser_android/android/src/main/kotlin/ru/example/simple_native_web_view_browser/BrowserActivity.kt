@@ -36,6 +36,7 @@ class BrowserActivity : AppCompatActivity() {
         const val EXTRA_USE_PERSISTENT_COOKIE_STORE = "usePersistentCookieStore"
         const val EXTRA_INITIAL_COOKIES = "initialCookies"
         const val EXTRA_URL_BAR_MODE = "urlBarMode"
+        const val EXTRA_ENABLE_DEBUGGING = "enableDebugging"
 
         /** Текущая открытая Activity (единственный экземпляр браузера). */
         var current: BrowserActivity? = null
@@ -49,8 +50,9 @@ class BrowserActivity : AppCompatActivity() {
 
     private lateinit var url: String
     private var usePersistentCookieStore = true
-    private val initialCookies = mutableListOf<Map<String, Any?>>()
+    private var initialCookies = mutableListOf<Map<String, Any?>>()
     private var urlBarMode = "hidden"
+    private var enableDebugging = false
     private var closedNotified = false
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -69,11 +71,21 @@ class BrowserActivity : AppCompatActivity() {
             (extras.getSerializable(EXTRA_INITIAL_COOKIES) as? List<Map<String, Any?>>).orEmpty(),
         )
         urlBarMode = extras.getString(EXTRA_URL_BAR_MODE) ?: "hidden"
+        enableDebugging = extras.getBoolean(EXTRA_ENABLE_DEBUGGING, false)
 
         setContentView(R.layout.browser_activity)
 
+        if (enableDebugging) {
+            // Веб-инспектор (Chrome DevTools) для всех WebView процесса.
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
         webView = findViewById(R.id.webView)
-        webView.settings.userAgentString = extras.getString(EXTRA_USER_AGENT).orEmpty()
+        // UA задаётся только если передан: иначе используется стандартный
+        // пользовательский агент WebView.
+        extras.getString(EXTRA_USER_AGENT)
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { webView.settings.userAgentString = it }
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.webViewClient = object : WebViewClient() {
@@ -132,27 +144,7 @@ class BrowserActivity : AppCompatActivity() {
 
         titleView = findViewById(R.id.titleView)
         addressField = findViewById(R.id.addressField)
-
-        when (urlBarMode) {
-            "hidden" -> {
-                titleView?.visibility = View.VISIBLE
-                titleView?.text = Uri.parse(url).host
-            }
-            else -> {
-                addressField?.visibility = View.VISIBLE
-                addressField?.isEnabled = (urlBarMode == "editable")
-                addressField?.setText(url, TextView.BufferType.NORMAL)
-                addressField?.setOnEditorActionListener { _, actionId, _ ->
-                    if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO) {
-                        submitAddress()
-                        true
-                    } else {
-                        false
-                    }
-                }
-                setupClearButton(addressField)
-            }
-        }
+        applyUrlBarMode()
 
         backButton = findViewById<ImageButton>(R.id.backButton).also {
             it.setOnClickListener {
@@ -170,6 +162,33 @@ class BrowserActivity : AppCompatActivity() {
         }
         findViewById<ImageButton>(R.id.reloadButton).setOnClickListener {
             webView.reload()
+        }
+    }
+
+    /// Применяет режим адресной строки (заголовок или адресное поле).
+    /// Вызывается при создании и при замене сессии (replace).
+    private fun applyUrlBarMode() {
+        when (urlBarMode) {
+            "hidden" -> {
+                titleView?.visibility = View.VISIBLE
+                titleView?.text = Uri.parse(url).host
+                addressField?.visibility = View.GONE
+            }
+            else -> {
+                titleView?.visibility = View.GONE
+                addressField?.visibility = View.VISIBLE
+                addressField?.isEnabled = (urlBarMode == "editable")
+                addressField?.setText(url, TextView.BufferType.NORMAL)
+                addressField?.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO) {
+                        submitAddress()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                setupClearButton(addressField)
+            }
         }
     }
 
@@ -267,6 +286,64 @@ class BrowserActivity : AppCompatActivity() {
             return
         }
         webView.loadUrl(url)
+    }
+
+    /** Применяет настройки нового запроса без загрузки страницы. */
+    fun applyReopenSettings(
+        url: String,
+        userAgent: String?,
+        initialCookies: List<Map<String, Any?>>,
+        urlBarMode: String,
+        enableDebugging: Boolean,
+    ) {
+        this.url = url
+        this.urlBarMode = urlBarMode
+        this.enableDebugging = enableDebugging
+        this.initialCookies.clear()
+        this.initialCookies.addAll(initialCookies)
+
+        // UA: переданный — применяем, пустой/отсутствует — системный дефолт.
+        userAgent?.takeIf { it.isNotEmpty() }?.let {
+            webView.settings.userAgentString = it
+        } ?: run {
+            webView.settings.userAgentString = null
+        }
+        // Инспектор глобальный для процесса: применяем переданное значение.
+        WebView.setWebContentsDebuggingEnabled(enableDebugging)
+        applyUrlBarMode()
+    }
+
+    /** Замена сессии при повторном открытии: вебвью переходит на новый адрес. */
+    fun replace(
+        url: String,
+        userAgent: String?,
+        initialCookies: List<Map<String, Any?>>,
+        urlBarMode: String,
+        enableDebugging: Boolean,
+    ) {
+        applyReopenSettings(url, userAgent, initialCookies, urlBarMode, enableDebugging)
+
+        val scheme = Uri.parse(url).scheme?.lowercase()
+        if (!isLoadableScheme(scheme)) {
+            SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", url)
+            return
+        }
+        setCookies(this.initialCookies) {
+            webView.loadUrl(url)
+        }
+    }
+
+    /** Применение настроек нового запроса без перезагрузки страницы. */
+    fun reopenSettings(
+        url: String,
+        userAgent: String?,
+        initialCookies: List<Map<String, Any?>>,
+        urlBarMode: String,
+        enableDebugging: Boolean,
+    ) {
+        applyReopenSettings(url, userAgent, initialCookies, urlBarMode, enableDebugging)
+        // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
+        setCookies(this.initialCookies) { }
     }
 
     /** Можно ли загрузить адрес с указанной схемой в WebView. */

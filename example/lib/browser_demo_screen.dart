@@ -40,11 +40,11 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
   final _cookieNameController = TextEditingController(text: 'demo_cookie');
   final _cookieValueController = TextEditingController(text: 'demo_value');
 
-  final _browser = AuthNativeBrowser();
+  final _browser = SimpleNativeBrowser();
   final _log = <String>[];
   final _logScrollController = ScrollController();
 
-  AuthBrowserUrlBarMode _urlBarMode = AuthBrowserUrlBarMode.hidden;
+  SimpleBrowserUrlBarMode _urlBarMode = SimpleBrowserUrlBarMode.hidden;
   var _usePersistentCookieStore = true;
   var _autoReloadWithCookies = false;
   var _browserOpen = false;
@@ -92,14 +92,14 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
     }
   }
 
-  List<AuthBrowserCookie> _cookiesFromForm() {
+  List<SimpleBrowserCookie> _cookiesFromForm() {
     final name = _cookieNameController.text.trim();
     final value = _cookieValueController.text.trim();
     if (name.isEmpty || value.isEmpty) {
       return const [];
     }
     return [
-      AuthBrowserCookie(name: name, value: value, path: '/'),
+      SimpleBrowserCookie(name: name, value: value, path: '/'),
     ];
   }
 
@@ -112,12 +112,13 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
     final cookies = _cookiesFromForm();
     try {
       await _browser.open(
-        AuthBrowserOpenRequest(
+        SimpleBrowserOpenRequest(
           url: url ?? Uri.parse(_urlController.text.trim()),
           userAgent: _uaController.text.trim(),
           usePersistentCookieStore: _usePersistentCookieStore,
           initialCookies: cookies,
           urlBarMode: _urlBarMode,
+          enableDebugging: true,
           onLoadStop: (u) => _handleUrl(u, 'onLoadStop'),
           onLoadError: (u) => _handleUrl(u, 'onLoadError'),
           onSchemeRedirect: (u) => _handleUrl(u, 'onSchemeRedirect'),
@@ -225,13 +226,13 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
           ),
           const SizedBox(height: 16),
           Text('Режим адресной строки', style: Theme.of(context).textTheme.titleSmall),
-          RadioGroup<AuthBrowserUrlBarMode>(
+          RadioGroup<SimpleBrowserUrlBarMode>(
             groupValue: _urlBarMode,
             onChanged: (value) => setState(() => _urlBarMode = value!),
             child: Column(
               children: [
-                for (final mode in AuthBrowserUrlBarMode.values)
-                  RadioListTile<AuthBrowserUrlBarMode>(
+                for (final mode in SimpleBrowserUrlBarMode.values)
+                  RadioListTile<SimpleBrowserUrlBarMode>(
                     key: ValueKey('urlBarMode_${mode.name}'),
                     dense: true,
                     title: Text(mode.name),

@@ -37,6 +37,26 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       }
       result(nil)
 
+    case "reopenSettings":
+      guard let args = call.arguments as? [String: Any],
+            let urlString = args["url"] as? String,
+            let url = URL(string: urlString),
+            let browserViewController = browserViewController else {
+        result(FlutterError(
+          code: "browser_not_open",
+          message: "Браузер не открыт или некорректный url",
+          details: nil))
+        return
+      }
+      browserViewController.reopenSettings(
+        url: url,
+        userAgent: args["userAgent"] as? String ?? "",
+        initialCookies: args["initialCookies"] as? [[String: Any]] ?? [],
+        urlBarMode: BrowserUrlBarMode(
+          rawValue: args["urlBarMode"] as? String ?? "hidden") ?? .hidden,
+        enableDebugging: args["enableDebugging"] as? Bool ?? false,
+        result: result)
+
     case "reloadWithCookies":
       guard let args = call.arguments as? [String: Any],
             let cookies = args["cookies"] as? [[String: Any]] else {
@@ -70,19 +90,24 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       return
     }
 
-    guard browserViewController == nil else {
-      result(FlutterError(
-        code: "browser_already_open",
-        message: "Браузер уже открыт",
-        details: nil))
-      return
-    }
-
     let userAgent = args["userAgent"] as? String ?? ""
     let usePersistentCookieStore = args["usePersistentCookieStore"] as? Bool ?? true
     let initialCookies = args["initialCookies"] as? [[String: Any]] ?? []
     let urlBarMode = BrowserUrlBarMode(
       rawValue: args["urlBarMode"] as? String ?? "hidden") ?? .hidden
+    let enableDebugging = args["enableDebugging"] as? Bool ?? false
+
+    // Повторное открытие: заменяем сессию в существующем браузере.
+    if let browserViewController = browserViewController {
+      browserViewController.replace(
+        url: url,
+        userAgent: userAgent,
+        initialCookies: initialCookies,
+        urlBarMode: urlBarMode,
+        enableDebugging: enableDebugging,
+        result: result)
+      return
+    }
 
     guard let topViewController = UIApplication.shared.topViewController() else {
       result(FlutterError(
@@ -98,6 +123,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       usePersistentCookieStore: usePersistentCookieStore,
       initialCookies: initialCookies,
       urlBarMode: urlBarMode,
+      enableDebugging: enableDebugging,
       channel: channel)
     controller.onClosed = { [weak self] in
       self?.browserViewController = nil

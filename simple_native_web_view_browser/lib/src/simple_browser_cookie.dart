@@ -1,5 +1,5 @@
 /// Кука, устанавливаемая в браузере.
-class AuthBrowserCookie {
+class SimpleBrowserCookie {
   /// Имя куки.
   final String name;
 
@@ -18,7 +18,7 @@ class AuthBrowserCookie {
   /// Кука недоступна скриптам на странице.
   final bool isHttpOnly;
 
-  const AuthBrowserCookie({
+  const SimpleBrowserCookie({
     required this.name,
     required this.value,
     this.domain,

@@ -1,5 +1,5 @@
 /// Режим отображения адресной строки браузера.
-enum AuthBrowserUrlBarMode {
+enum SimpleBrowserUrlBarMode {
   /// Адресная строка скрыта.
   hidden,
 

@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Только для интеграционного теста 302-редиректа на локальном HTTP. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,17 +1,18 @@
-import 'src/auth_browser_cookie.dart';
-import 'src/auth_browser_open_request.dart';
+import 'src/simple_browser_cookie.dart';
+import 'src/simple_browser_open_request.dart';
 import 'src/simple_native_web_view_browser_platform_interface.dart';
 
-export 'src/auth_browser_cookie.dart';
-export 'src/auth_browser_open_request.dart';
-export 'src/auth_browser_url_bar_mode.dart';
+export 'src/simple_browser_cookie.dart';
+export 'src/simple_browser_open_request.dart';
+export 'src/simple_browser_reopen_policy.dart';
+export 'src/simple_browser_url_bar_mode.dart';
 export 'src/simple_native_web_view_browser_platform_interface.dart'
     show SimpleNativeWebViewBrowserPlatform, MethodChannelSimpleNativeWebViewBrowser;
 
 /// Простой нативный браузер на основе WebView.
-class AuthNativeBrowser {
+class SimpleNativeBrowser {
   /// Открывает браузер с параметрами [request].
-  Future<void> open(AuthBrowserOpenRequest request) {
+  Future<void> open(SimpleBrowserOpenRequest request) {
     return SimpleNativeWebViewBrowserPlatform.instance.open(request);
   }
 
@@ -21,7 +22,7 @@ class AuthNativeBrowser {
   }
 
   /// Устанавливает [cookies] и перезагружает текущую страницу.
-  Future<void> reloadWithCookies(List<AuthBrowserCookie> cookies) {
+  Future<void> reloadWithCookies(List<SimpleBrowserCookie> cookies) {
     return SimpleNativeWebViewBrowserPlatform.instance
         .reloadWithCookies(cookies);
   }

@@ -65,8 +65,33 @@ class SimpleNativeWebViewBrowserPlugin :
                 result.success(null)
             }
             "reloadWithCookies" -> reloadWithCookies(call, result)
+            "reopenSettings" -> reopenSettings(call, result)
             else -> result.notImplemented()
         }
+    }
+
+    private fun reopenSettings(call: MethodCall, result: Result) {
+        val url = call.argument<String>("url")
+        if (url == null) {
+            result.error("invalid_arguments", "reopenSettings: некорректный url", null)
+            return
+        }
+        @Suppress("UNCHECKED_CAST")
+        val initialCookies = (call.argument<List<Map<String, Any?>>>("initialCookies"))
+            ?.toList() ?: emptyList()
+        val current = BrowserActivity.current
+        if (current == null) {
+            result.error("browser_not_open", "Браузер не открыт", null)
+            return
+        }
+        current.reopenSettings(
+            url = url,
+            userAgent = call.argument<String>("userAgent"),
+            initialCookies = initialCookies,
+            urlBarMode = call.argument<String>("urlBarMode") ?: "hidden",
+            enableDebugging = call.argument<Boolean>("enableDebugging") ?: false,
+        )
+        result.success(null)
     }
 
     private fun open(call: MethodCall, result: Result) {
@@ -75,26 +100,37 @@ class SimpleNativeWebViewBrowserPlugin :
             result.error("invalid_arguments", "open: некорректный url", null)
             return
         }
-        if (BrowserActivity.current != null) {
-            result.error("browser_already_open", "Браузер уже открыт", null)
+        val userAgent = call.argument<String>("userAgent")
+        @Suppress("UNCHECKED_CAST")
+        val initialCookies = (call.argument<List<Map<String, Any?>>>("initialCookies"))
+            ?.toList() ?: emptyList()
+        val urlBarMode = call.argument<String>("urlBarMode") ?: "hidden"
+        val enableDebugging = call.argument<Boolean>("enableDebugging") ?: false
+
+        // Повторное открытие: заменяем сессию в существующем браузере.
+        BrowserActivity.current?.let { current ->
+            current.replace(
+                url = url,
+                userAgent = userAgent,
+                initialCookies = initialCookies,
+                urlBarMode = urlBarMode,
+                enableDebugging = enableDebugging,
+            )
+            result.success(null)
             return
         }
+
         val context = activity
         if (context == null) {
             result.error("no_activity", "Нет Activity для показа браузера", null)
             return
         }
 
-        @Suppress("UNCHECKED_CAST")
-        val initialCookies = (call.argument<List<Map<String, Any?>>>("initialCookies"))
-            ?.toList() ?: emptyList()
-
         val intent = Intent(context, BrowserActivity::class.java).apply {
             putExtra(BrowserActivity.EXTRA_URL, url)
-            putExtra(
-                BrowserActivity.EXTRA_USER_AGENT,
-                call.argument<String>("userAgent").orEmpty(),
-            )
+            userAgent?.let {
+                putExtra(BrowserActivity.EXTRA_USER_AGENT, it)
+            }
             putExtra(
                 BrowserActivity.EXTRA_USE_PERSISTENT_COOKIE_STORE,
                 call.argument<Boolean>("usePersistentCookieStore") ?: true,
@@ -105,7 +141,11 @@ class SimpleNativeWebViewBrowserPlugin :
             )
             putExtra(
                 BrowserActivity.EXTRA_URL_BAR_MODE,
-                call.argument<String>("urlBarMode") ?: "hidden",
+                urlBarMode,
+            )
+            putExtra(
+                BrowserActivity.EXTRA_ENABLE_DEBUGGING,
+                enableDebugging,
             )
         }
         context.startActivity(intent)

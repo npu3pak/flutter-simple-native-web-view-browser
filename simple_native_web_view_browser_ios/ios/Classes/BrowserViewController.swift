@@ -18,15 +18,17 @@ enum BrowserUrlBarMode: String {
 /// без чёрных полос. Кнопки — плоские UIButton без фона и тени;
 /// disabled-вид обеспечивает UIKit (снижение непрозрачности).
 final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
-  private let url: URL
-  private let userAgent: String
+  private var url: URL
+  private var userAgent: String
   private let usePersistentCookieStore: Bool
-  private let initialCookies: [[String: Any]]
-  private let urlBarMode: BrowserUrlBarMode
+  private var initialCookies: [[String: Any]]
+  private var urlBarMode: BrowserUrlBarMode
+  private var enableDebugging: Bool
   private weak var channel: FlutterMethodChannel?
 
   private var webView: WKWebView!
   private var topBar: UIView!
+  private var topStack: UIStackView!
   private var bottomBar: UIView!
   private var bottomBarHeightConstraint: NSLayoutConstraint!
   private var topTitleLabel: UILabel?
@@ -45,6 +47,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     usePersistentCookieStore: Bool,
     initialCookies: [[String: Any]],
     urlBarMode: BrowserUrlBarMode,
+    enableDebugging: Bool,
     channel: FlutterMethodChannel?
   ) {
     self.url = url
@@ -52,6 +55,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     self.usePersistentCookieStore = usePersistentCookieStore
     self.initialCookies = initialCookies
     self.urlBarMode = urlBarMode
+    self.enableDebugging = enableDebugging
     self.channel = channel
     super.init(nibName: nil, bundle: nil)
   }
@@ -81,6 +85,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     webView = WKWebView(frame: .zero, configuration: configuration)
     if !userAgent.isEmpty {
       webView.customUserAgent = userAgent
+    }
+    if enableDebugging {
+      // Веб-инспектор (Safari Web Inspector) доступен с iOS 16.4.
+      if #available(iOS 16.4, *) {
+        webView.isInspectable = true
+      }
     }
     webView.navigationDelegate = self
     webView.uiDelegate = self
@@ -126,6 +136,14 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     bottomBarHeightConstraint.constant = 44 + view.safeAreaInsets.bottom
   }
 
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    // Закрепляем клавиатурный first responder за WebView: hardware-
+    // клавиши (например, Enter) уходят в веб-контент, а не во Flutter,
+    // иначе сфокусированные элементы Flutter могут сработать повторно.
+    webView.becomeFirstResponder()
+  }
+
   /// Схемы, которые WebView может загрузить. Кастомные схемы (например,
   /// demoapp://...) загрузить нельзя: при попытке загрузки WKWebView может
   /// вообще не начать навигацию, поэтому такое событие отдаём приложению
@@ -133,15 +151,103 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   private func loadInitialPage() {
     guard let scheme = url.scheme?.lowercased(),
           Self.isLoadableScheme(scheme) else {
-      channel?.invokeMethod("onSchemeRedirect", arguments: url.absoluteString)
+      notifySchemeRedirect(url.absoluteString)
       return
     }
     webView.load(URLRequest(url: url))
   }
 
+  /// Применяет настройки нового запроса без загрузки страницы.
+  /// Используется при замене сессии (reopenSettings и replace).
+  func applyReopenSettings(
+    url: URL,
+    userAgent: String,
+    initialCookies: [[String: Any]],
+    urlBarMode: BrowserUrlBarMode,
+    enableDebugging: Bool
+  ) {
+    self.url = url
+    self.userAgent = userAgent
+    self.initialCookies = initialCookies
+    self.urlBarMode = urlBarMode
+    self.enableDebugging = enableDebugging
+    schemeRedirectNotified = false
+
+    if userAgent.isEmpty {
+      webView.customUserAgent = nil
+    } else {
+      webView.customUserAgent = userAgent
+    }
+    if enableDebugging {
+      // Веб-инспектор (Safari Web Inspector) доступен с iOS 16.4.
+      if #available(iOS 16.4, *) {
+        webView.isInspectable = true
+      }
+    }
+    applyUrlBarMode()
+  }
+
+  /// Замена сессии при повторном открытии (reopenPolicy == replace):
+  /// текущее вебвью переходит на новый адрес, все настройки нового
+  /// запроса применяются полностью.
+  func replace(
+    url: URL,
+    userAgent: String,
+    initialCookies: [[String: Any]],
+    urlBarMode: BrowserUrlBarMode,
+    enableDebugging: Bool,
+    result: @escaping FlutterResult
+  ) {
+    applyReopenSettings(
+      url: url,
+      userAgent: userAgent,
+      initialCookies: initialCookies,
+      urlBarMode: urlBarMode,
+      enableDebugging: enableDebugging)
+
+    setCookies(initialCookies) { [weak self] in
+      guard let self = self else { return }
+      self.loadInitialPage()
+      result(nil)
+    }
+  }
+
+  /// Применение настроек нового запроса без перезагрузки страницы
+  /// (reopenPolicy == replaceCallbacksAndSettings).
+  func reopenSettings(
+    url: URL,
+    userAgent: String,
+    initialCookies: [[String: Any]],
+    urlBarMode: BrowserUrlBarMode,
+    enableDebugging: Bool,
+    result: @escaping FlutterResult
+  ) {
+    applyReopenSettings(
+      url: url,
+      userAgent: userAgent,
+      initialCookies: initialCookies,
+      urlBarMode: urlBarMode,
+      enableDebugging: enableDebugging)
+    // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
+    setCookies(initialCookies) {
+      result(nil)
+    }
+  }
+
   /// Можно ли загрузить адрес с указанной схемой в WebView.
   private static func isLoadableScheme(_ scheme: String) -> Bool {
     ["http", "https", "data", "about", "file", "blob"].contains(scheme)
+  }
+
+  /// Единственная доставка перенаправления на кастомную схему за сеанс
+  /// браузера: один и тот же редирект может прийти через несколько
+  /// путей перехвата (decidePolicyFor, серверный редирект, ошибка).
+  private var schemeRedirectNotified = false
+
+  private func notifySchemeRedirect(_ urlString: String?) {
+    guard let urlString = urlString, !schemeRedirectNotified else { return }
+    schemeRedirectNotified = true
+    channel?.invokeMethod("onSchemeRedirect", arguments: urlString)
   }
 
   // MARK: - Хром
@@ -164,7 +270,44 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     let placeholder = UIView()
     placeholder.translatesAutoresizingMaskIntoConstraints = false
 
-    let titleView: UIView
+    topStack = UIStackView(arrangedSubviews: [closeButton, placeholder])
+    topStack.translatesAutoresizingMaskIntoConstraints = false
+    topStack.axis = .horizontal
+    topStack.spacing = 8
+    topStack.alignment = .center
+    topBar.addSubview(topStack)
+    applyUrlBarMode()
+
+    NSLayoutConstraint.activate([
+      topStack.topAnchor.constraint(equalTo: topBar.safeAreaLayoutGuide.topAnchor),
+      topStack.leadingAnchor.constraint(
+        equalTo: topBar.safeAreaLayoutGuide.leadingAnchor,
+        constant: 16),
+      topStack.trailingAnchor.constraint(
+        equalTo: topBar.safeAreaLayoutGuide.trailingAnchor,
+        constant: -16),
+      topStack.heightAnchor.constraint(equalToConstant: 44),
+      placeholder.widthAnchor.constraint(equalTo: closeButton.widthAnchor),
+    ])
+  }
+
+  /// Создаёт и подставляет центральный элемент верхней панели
+  /// (заголовок или адресную строку) в соответствии с urlBarMode.
+  /// Вызывается при создании и при замене сессии (replace).
+  private func applyUrlBarMode() {
+    guard let topStack = topStack else { return }
+
+    // Удаляем прежний центральный элемент.
+    if let centerView = topStack.arrangedSubviews.first(where: {
+      $0 !== topStack.arrangedSubviews.first && $0 !== topStack.arrangedSubviews.last
+    }) {
+      topStack.removeArrangedSubview(centerView)
+      centerView.removeFromSuperview()
+    }
+    topTitleLabel = nil
+    addressField = nil
+
+    let centerView: UIView
     switch urlBarMode {
     case .hidden:
       let label = UILabel()
@@ -173,7 +316,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       label.textAlignment = .center
       label.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
       topTitleLabel = label
-      titleView = label
+      centerView = label
     case .editable, .readOnly:
       let field = UITextField()
       field.borderStyle = .none
@@ -192,27 +335,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       field.setContentHuggingPriority(.defaultLow, for: .horizontal)
       field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
       addressField = field
-      titleView = field
+      centerView = field
     }
-
-    let stack = UIStackView(arrangedSubviews: [closeButton, titleView, placeholder])
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    stack.axis = .horizontal
-    stack.spacing = 8
-    stack.alignment = .center
-    topBar.addSubview(stack)
-
-    NSLayoutConstraint.activate([
-      stack.topAnchor.constraint(equalTo: topBar.safeAreaLayoutGuide.topAnchor),
-      stack.leadingAnchor.constraint(
-        equalTo: topBar.safeAreaLayoutGuide.leadingAnchor,
-        constant: 16),
-      stack.trailingAnchor.constraint(
-        equalTo: topBar.safeAreaLayoutGuide.trailingAnchor,
-        constant: -16),
-      stack.heightAnchor.constraint(equalToConstant: 44),
-      placeholder.widthAnchor.constraint(equalTo: closeButton.widthAnchor),
-    ])
+    topStack.insertArrangedSubview(centerView, at: 1)
   }
 
   /// Нижняя панель «как в старых браузерах»: во всю ширину до нижнего
@@ -315,10 +440,20 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
   // MARK: - Закрытие
 
+  private var isClosing = false
+
   /// Закрытие из кода (метод close()) или кнопкой «крестик».
+  /// Повторный вызов во время закрытия игнорируется; если контроллер
+  /// уже не представлен — закрытие уведомляется сразу.
   func closeFromDart() {
-    dismiss(animated: true) { [weak self] in
-      self?.notifyClosed()
+    guard !isClosing else { return }
+    isClosing = true
+    if presentingViewController != nil {
+      dismiss(animated: true) { [weak self] in
+        self?.notifyClosed()
+      }
+    } else {
+      notifyClosed()
     }
   }
 
@@ -345,6 +480,22 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
   // MARK: - WKNavigationDelegate
 
+  /// Серверный редирект (302) на кастомную схему может не проходить
+  /// через decidePolicyFor: перехватываем здесь, отдаём адрес приложению
+  /// и останавливаем навигацию, чтобы редирект не ушёл в систему.
+  func webView(
+    _ webView: WKWebView,
+    didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!
+  ) {
+    guard let url = webView.url,
+          let scheme = url.scheme?.lowercased(),
+          !Self.isLoadableScheme(scheme) else {
+      return
+    }
+    notifySchemeRedirect(url.absoluteString)
+    webView.stopLoading()
+  }
+
   /// Перехватывает навигацию на кастомную схему на любом шаге навигации
   /// (серверные редиректы, клики по ссылкам, JS-переходы): отдаёт адрес
   /// приложению и отменяет навигацию. Без перехвата WKWebView может
@@ -356,9 +507,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   ) {
     if let scheme = navigationAction.request.url?.scheme?.lowercased(),
        !Self.isLoadableScheme(scheme) {
-      channel?.invokeMethod(
-        "onSchemeRedirect",
-        arguments: navigationAction.request.url?.absoluteString)
+      notifySchemeRedirect(navigationAction.request.url?.absoluteString)
       decisionHandler(.cancel)
       return
     }
@@ -409,9 +558,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     // в приложение, а не ошибка загрузки.
     if let scheme = failingUrl?.scheme?.lowercased(),
        !Self.isLoadableScheme(scheme) {
-      channel?.invokeMethod(
-        "onSchemeRedirect",
-        arguments: failingUrl?.absoluteString)
+      notifySchemeRedirect(failingUrl?.absoluteString)
       return
     }
     channel?.invokeMethod(

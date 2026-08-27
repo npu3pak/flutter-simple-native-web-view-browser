@@ -1,8 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-import 'auth_browser_cookie.dart';
-import 'auth_browser_open_request.dart';
+import 'simple_browser_cookie.dart';
+import 'simple_browser_open_request.dart';
+import 'simple_browser_reopen_policy.dart';
 
 /// Платформенный интерфейс simple_native_web_view_browser.
 /// Реализации:
@@ -24,7 +25,7 @@ abstract class SimpleNativeWebViewBrowserPlatform extends PlatformInterface {
   }
 
   /// Открывает браузер с параметрами [request].
-  Future<void> open(AuthBrowserOpenRequest request) {
+  Future<void> open(SimpleBrowserOpenRequest request) {
     throw UnimplementedError('open() has not been implemented.');
   }
 
@@ -34,7 +35,7 @@ abstract class SimpleNativeWebViewBrowserPlatform extends PlatformInterface {
   }
 
   /// Устанавливает [cookies] и перезагружает текущую страницу.
-  Future<void> reloadWithCookies(List<AuthBrowserCookie> cookies) {
+  Future<void> reloadWithCookies(List<SimpleBrowserCookie> cookies) {
     throw UnimplementedError('reloadWithCookies() has not been implemented.');
   }
 }
@@ -43,34 +44,76 @@ abstract class SimpleNativeWebViewBrowserPlatform extends PlatformInterface {
 ///
 /// События браузера (onLoadStop/onLoadError/onClosed) приходят по тому же
 /// каналу с нативной стороны и маршрутизируются на колбэки активного
-/// [AuthBrowserOpenRequest].
+/// [SimpleBrowserOpenRequest].
 class MethodChannelSimpleNativeWebViewBrowser
     extends SimpleNativeWebViewBrowserPlatform {
   static const _channel = MethodChannel('simple_native_web_view_browser');
 
-  AuthBrowserOpenRequest? _activeRequest;
+  SimpleBrowserOpenRequest? _activeRequest;
 
   MethodChannelSimpleNativeWebViewBrowser() {
     _channel.setMethodCallHandler(_handleNativeEvent);
   }
 
   @override
-  Future<void> open(AuthBrowserOpenRequest request) async {
+  Future<void> open(SimpleBrowserOpenRequest request) async {
+    final previous = _activeRequest;
+    if (previous != null) {
+      final policy = request.reopenPolicy?.call(previous, request) ??
+          SimpleBrowserReopenPolicy.replaceCallbacksAndSettingsAndReload;
+      switch (policy) {
+        case SimpleBrowserReopenPolicy.discard:
+          // Сессия и её обработчики сохраняются, запрос отбрасывается.
+          return;
+        case SimpleBrowserReopenPolicy.replaceCallbacks:
+          _activeRequest = request;
+          return;
+        case SimpleBrowserReopenPolicy.replaceCallbacksAndSettings:
+          _activeRequest = request;
+          await _invokeReopen('reopenSettings', request);
+          return;
+        case SimpleBrowserReopenPolicy.replaceCallbacksAndSettingsAndReload:
+          _activeRequest = request;
+          await _invokeReopen('open', request);
+          return;
+      }
+    }
+
     _activeRequest = request;
     try {
-      await _channel.invokeMethod<void>('open', {
-        'url': request.url.toString(),
-        'userAgent': request.userAgent,
-        'usePersistentCookieStore': request.usePersistentCookieStore,
-        'initialCookies': [
-          for (final cookie in request.initialCookies) _cookieToMap(cookie),
-        ],
-        'urlBarMode': request.urlBarMode.name,
-      });
+      await _channel.invokeMethod<void>('open', _openArgs(request));
     } catch (_) {
       _activeRequest = null;
       rethrow;
     }
+  }
+
+  /// Вызывает нативный метод для замены сессии; при ошибке активный
+  /// запрос сбрасывается (не восстанавливается) — ошибки принадлежат
+  /// новой сессии.
+  Future<void> _invokeReopen(
+    String method,
+    SimpleBrowserOpenRequest request,
+  ) async {
+    try {
+      await _channel.invokeMethod<void>(method, _openArgs(request));
+    } catch (_) {
+      _activeRequest = null;
+      rethrow;
+    }
+  }
+
+  Map<String, Object?> _openArgs(SimpleBrowserOpenRequest request) {
+    return {
+      'url': request.url.toString(),
+      'userAgent': request.userAgent,
+      'usePersistentCookieStore': request.usePersistentCookieStore,
+      'initialCookies': [
+        for (final cookie in request.initialCookies) _cookieToMap(cookie),
+      ],
+      'urlBarMode': request.urlBarMode.name,
+      'enableDebugging': request.enableDebugging,
+    };
   }
 
   @override
@@ -79,7 +122,7 @@ class MethodChannelSimpleNativeWebViewBrowser
   }
 
   @override
-  Future<void> reloadWithCookies(List<AuthBrowserCookie> cookies) async {
+  Future<void> reloadWithCookies(List<SimpleBrowserCookie> cookies) async {
     await _channel.invokeMethod<void>('reloadWithCookies', {
       'cookies': [for (final cookie in cookies) _cookieToMap(cookie)],
     });
@@ -109,7 +152,7 @@ class MethodChannelSimpleNativeWebViewBrowser
     }
   }
 
-  Map<String, Object?> _cookieToMap(AuthBrowserCookie cookie) {
+  Map<String, Object?> _cookieToMap(SimpleBrowserCookie cookie) {
     return {
       'name': cookie.name,
       'value': cookie.value,
@@ -125,11 +168,11 @@ class MethodChannelSimpleNativeWebViewBrowser
 class MockSimpleNativeWebViewBrowserPlatform
     extends SimpleNativeWebViewBrowserPlatform {
   @override
-  Future<void> open(AuthBrowserOpenRequest request) async {}
+  Future<void> open(SimpleBrowserOpenRequest request) async {}
 
   @override
   Future<void> close() async {}
 
   @override
-  Future<void> reloadWithCookies(List<AuthBrowserCookie> cookies) async {}
+  Future<void> reloadWithCookies(List<SimpleBrowserCookie> cookies) async {}
 }
