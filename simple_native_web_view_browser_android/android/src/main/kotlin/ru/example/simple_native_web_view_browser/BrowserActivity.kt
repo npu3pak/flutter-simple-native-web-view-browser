@@ -10,6 +10,7 @@ import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
@@ -19,6 +20,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
+import org.json.JSONException
 
 /**
  * Нативный браузер «как в старых браузерах»: панели во всю ширину,
@@ -65,6 +68,9 @@ class BrowserActivity : AppCompatActivity() {
     /** Guard единственной доставки onSchemeRedirect за сессию (аналог iOS). */
     private var schemeRedirectNotified = false
 
+    /** WebView уничтожен: колбэки после destroy игнорируются. */
+    private var webViewDestroyed = false
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,10 +82,7 @@ class BrowserActivity : AppCompatActivity() {
         }
         url = extras.getString(EXTRA_URL) ?: ""
         usePersistentCookieStore = extras.getBoolean(EXTRA_USE_PERSISTENT_COOKIE_STORE, true)
-        @Suppress("UNCHECKED_CAST")
-        initialCookies.addAll(
-            (extras.getSerializable(EXTRA_INITIAL_COOKIES) as? List<Map<String, Any?>>).orEmpty(),
-        )
+        initialCookies.addAll(parseCookiesJson(extras.getString(EXTRA_INITIAL_COOKIES)))
         urlBarMode = extras.getString(EXTRA_URL_BAR_MODE) ?: "hidden"
         enableDebugging = extras.getBoolean(EXTRA_ENABLE_DEBUGGING, false)
         enableCookiesAndroid = extras.getBoolean(EXTRA_ENABLE_COOKIES, true)
@@ -87,10 +90,9 @@ class BrowserActivity : AppCompatActivity() {
 
         setContentView(R.layout.browser_activity)
 
-        if (enableDebugging) {
-            // Веб-инспектор (Chrome DevTools) для всех WebView процесса.
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
+        // Веб-инспектор (Chrome DevTools) для всех WebView процесса:
+        // применяем переданное значение в обе стороны.
+        WebView.setWebContentsDebuggingEnabled(enableDebugging)
 
         webView = findViewById(R.id.webView)
         // UA задаётся только если передан: иначе используется стандартный
@@ -100,6 +102,7 @@ class BrowserActivity : AppCompatActivity() {
             ?.let { webView.settings.userAgentString = it }
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
+        webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         applyCookieAcceptance()
         applyFileAccessSettings()
         webView.webViewClient = object : WebViewClient() {
@@ -264,6 +267,9 @@ class BrowserActivity : AppCompatActivity() {
     }
 
     private fun updateChromeState() {
+        if (webViewDestroyed) {
+            return
+        }
         setButtonEnabled(backButton, webView.canGoBack())
         setButtonEnabled(forwardButton, webView.canGoForward())
         val title = webView.title?.takeIf { it.isNotEmpty() } ?: Uri.parse(url).host
@@ -297,7 +303,7 @@ class BrowserActivity : AppCompatActivity() {
             CookieManager.getInstance().removeAllCookies(null)
             CookieManager.getInstance().flush()
         }
-        setCookies(initialCookies) {
+        setCookies(initialCookies, url) {
             loadInitialPage()
         }
     }
@@ -363,7 +369,7 @@ class BrowserActivity : AppCompatActivity() {
             notifySchemeRedirect(url)
             return
         }
-        setCookies(this.initialCookies) {
+        setCookies(this.initialCookies, url) {
             webView.loadUrl(url)
         }
     }
@@ -383,7 +389,7 @@ class BrowserActivity : AppCompatActivity() {
             enableCookiesAndroid, allowFileAccess,
         )
         // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
-        setCookies(this.initialCookies) { }
+        setCookies(this.initialCookies, url) { }
     }
 
     /** Можно ли загрузить адрес с указанной схемой в WebView. */
@@ -422,19 +428,32 @@ class BrowserActivity : AppCompatActivity() {
 
     /** Устанавливает куки и перезагружает текущую страницу. */
     fun reloadWithCookies(cookies: List<Map<String, Any?>>) {
-        setCookies(cookies) {
+        val currentUrl = webView.url ?: url
+        setCookies(cookies, currentUrl) {
             webView.reload()
         }
     }
 
-    private fun setCookies(cookies: List<Map<String, Any?>>, completion: () -> Unit) {
+    /** Устанавливает куки для [hostUrl]; невалидные значения пропускаются. */
+    private fun setCookies(
+        cookies: List<Map<String, Any?>>,
+        hostUrl: String,
+        completion: () -> Unit,
+    ) {
         val cookieManager = CookieManager.getInstance()
-        val host = Uri.parse(url).host.orEmpty()
+        val host = Uri.parse(hostUrl).host.orEmpty()
         for (cookie in cookies) {
             val name = cookie["name"] as? String ?: continue
             val value = cookie["value"] as? String ?: continue
             val path = cookie["path"] as? String ?: "/"
             val domain = cookie["domain"] as? String ?: host
+            if (!isValidCookieField(name, allowEmpty = false) ||
+                !isValidCookieField(value, allowEmpty = true) ||
+                !isValidCookieField(path, allowEmpty = true) ||
+                !isValidCookieField(domain, allowEmpty = false)
+            ) {
+                continue
+            }
             val secure = cookie["isSecure"] as? Boolean == true
             val httpOnly = cookie["isHttpOnly"] as? Boolean == true
             var cookieString = "$name=$value; Path=$path; Domain=$domain"
@@ -444,10 +463,51 @@ class BrowserActivity : AppCompatActivity() {
             if (httpOnly) {
                 cookieString += "; HttpOnly"
             }
-            cookieManager.setCookie(url, cookieString)
+            cookieManager.setCookie(hostUrl, cookieString)
         }
         cookieManager.flush()
         completion()
+    }
+
+    /** Дополнительная защита от инъекции атрибутов кук на нативной стороне. */
+    private fun isValidCookieField(value: String, allowEmpty: Boolean): Boolean {
+        if (!allowEmpty && value.isEmpty()) {
+            return false
+        }
+        for (char in value) {
+            val code = char.code
+            if (code < 0x20 || code == 0x7F || char == ';' || char == ',') {
+                return false
+            }
+        }
+        return true
+    }
+
+    /** Разбирает сериализованные куки (JSON-массив) из Intent. */
+    private fun parseCookiesJson(json: String?): List<Map<String, Any?>> {
+        if (json.isNullOrEmpty()) {
+            return emptyList()
+        }
+        return try {
+            val array = JSONArray(json)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val map = mutableMapOf<String, Any?>()
+                    val keys = obj.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        when (val value = obj.get(key)) {
+                            is String, is Boolean -> map[key] = value
+                            else -> map[key] = value?.toString()
+                        }
+                    }
+                    add(map)
+                }
+            }
+        } catch (_: JSONException) {
+            emptyList()
+        }
     }
 
     // MARK: - Жизненный цикл
@@ -464,6 +524,8 @@ class BrowserActivity : AppCompatActivity() {
         // Возвращаем приём кук процесса в исходное состояние.
         previousAcceptCookie?.let { CookieManager.getInstance().setAcceptCookie(it) }
         webView.settings.javaScriptEnabled = false
+        webView.webViewClient = null
+        webViewDestroyed = true
         webView.removeAllViews()
         webView.destroy()
         super.onDestroy()

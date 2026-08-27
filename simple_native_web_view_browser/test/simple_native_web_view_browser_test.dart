@@ -177,6 +177,26 @@ void main() {
     expect(closed, isTrue);
   });
 
+  test('исключение в колбэке не рвёт маршрутизацию последующих событий',
+      () async {
+    final browser = SimpleNativeBrowser();
+    final stopped = <Uri>[];
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        userAgent: 'ua',
+        onLoadError: (_) => throw StateError('boom'),
+        onLoadStop: stopped.add,
+      ),
+    );
+
+    await _sendNativeEvent('onLoadError', 'https://example.com/err');
+    await _sendNativeEvent('onLoadStop', 'https://example.com/stop');
+
+    expect(stopped, [Uri.parse('https://example.com/stop')]);
+  });
+
   test('reopenPolicy без резолвера: полная замена по умолчанию', () async {
     final browser = SimpleNativeBrowser();
     final firstStops = <Uri>[];

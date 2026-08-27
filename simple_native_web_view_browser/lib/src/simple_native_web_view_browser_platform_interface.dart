@@ -142,21 +142,35 @@ class MethodChannelSimpleNativeWebViewBrowser
       case 'onLoadStop':
         final url = Uri.tryParse(call.arguments as String? ?? '');
         if (url != null) {
-          request?.onLoadStop?.call(url);
+          _callSafely(() => request?.onLoadStop?.call(url));
         }
       case 'onLoadError':
         final url = Uri.tryParse(call.arguments as String? ?? '');
         if (url != null) {
-          request?.onLoadError?.call(url);
+          _callSafely(() => request?.onLoadError?.call(url));
         }
       case 'onSchemeRedirect':
         final url = Uri.tryParse(call.arguments as String? ?? '');
         if (url != null) {
-          request?.onSchemeRedirect?.call(url);
+          _callSafely(() => request?.onSchemeRedirect?.call(url));
         }
       case 'onClosed':
         _activeRequest = null;
-        request?.onClosed?.call();
+        _callSafely(() => request?.onClosed?.call());
+    }
+  }
+
+  /// Вызывает колбэк приложения, изолируя исключения пользовательского кода
+  /// от маршрутизации событий канала.
+  void _callSafely(VoidCallback callback) {
+    try {
+      callback();
+    } catch (error, stackTrace) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'simple_native_web_view_browser',
+      ));
     }
   }
 

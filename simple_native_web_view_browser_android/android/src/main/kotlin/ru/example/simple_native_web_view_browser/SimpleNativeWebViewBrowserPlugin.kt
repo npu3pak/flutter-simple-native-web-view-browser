@@ -9,6 +9,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Android-реализация simple_native_web_view_browser.
@@ -143,7 +145,7 @@ class SimpleNativeWebViewBrowserPlugin :
             )
             putExtra(
                 BrowserActivity.EXTRA_INITIAL_COOKIES,
-                ArrayList(initialCookies),
+                cookiesToJson(initialCookies),
             )
             putExtra(
                 BrowserActivity.EXTRA_URL_BAR_MODE,
@@ -168,7 +170,11 @@ class SimpleNativeWebViewBrowserPlugin :
 
     private fun reloadWithCookies(call: MethodCall, result: Result) {
         @Suppress("UNCHECKED_CAST")
-        val cookies = call.argument<List<Map<String, Any?>>>("cookies").orEmpty()
+        val cookies = call.argument<List<Map<String, Any?>>>("cookies")
+        if (cookies == null) {
+            result.error("invalid_arguments", "reloadWithCookies: аргументы не переданы", null)
+            return
+        }
         val current = BrowserActivity.current
         if (current == null) {
             result.error("browser_not_open", "Браузер не открыт", null)
@@ -176,5 +182,20 @@ class SimpleNativeWebViewBrowserPlugin :
             current.reloadWithCookies(cookies)
             result.success(null)
         }
+    }
+
+    /** Сериализует куки в JSON-строку: компактнее и безопаснее по размеру Intent. */
+    private fun cookiesToJson(cookies: List<Map<String, Any?>>): String {
+        val array = JSONArray()
+        for (cookie in cookies) {
+            val obj = JSONObject()
+            for ((key, value) in cookie) {
+                if (value != null) {
+                    obj.put(key, value)
+                }
+            }
+            array.put(obj)
+        }
+        return array.toString()
     }
 }

@@ -126,7 +126,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       bottomBarHeightConstraint,
     ])
 
-    setCookies(initialCookies) { [weak self] in
+    setCookies(initialCookies, hostUrl: url) { [weak self] in
       guard let self = self else { return }
       self.loadInitialPage()
     }
@@ -211,7 +211,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       enableDebugging: enableDebugging,
       allowFileAccess: allowFileAccess)
 
-    setCookies(initialCookies) { [weak self] in
+    setCookies(initialCookies, hostUrl: url) { [weak self] in
       guard let self = self else { return }
       self.loadInitialPage()
       result(nil)
@@ -237,7 +237,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       enableDebugging: enableDebugging,
       allowFileAccess: allowFileAccess)
     // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
-    setCookies(initialCookies) {
+    setCookies(initialCookies, hostUrl: url) {
       result(nil)
     }
   }
@@ -555,6 +555,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
   private func handleNavigationError(_ error: Error, webView: WKWebView) {
     updateChromeState()
+    // Отмена навигации пользователем или новой навигацией — не ошибка загрузки.
+    if (error as NSError).code == NSURLErrorCancelled {
+      return
+    }
     // Адрес ошибки берём из userInfo: при попытке открыть кастомную схему
     // (например, demoapp://...) навигация падает, а failing URL — это
     // адрес редиректа, который ожидает приложение. В зависимости от типа
@@ -597,18 +601,23 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
   /// Устанавливает [cookies] и перезагружает текущую страницу.
   func reloadWithCookies(_ cookies: [[String: Any]], result: @escaping FlutterResult) {
-    setCookies(cookies) { [weak self] in
+    let currentUrl = webView.url ?? url
+    setCookies(cookies, hostUrl: currentUrl) { [weak self] in
       self?.webView.reload()
       result(nil)
     }
   }
 
-  private func setCookies(_ cookies: [[String: Any]], completion: @escaping () -> Void) {
+  private func setCookies(
+    _ cookies: [[String: Any]],
+    hostUrl: URL,
+    completion: @escaping () -> Void
+  ) {
     let dataStore = webView.configuration.websiteDataStore
     let group = DispatchGroup()
     for cookieDict in cookies {
       group.enter()
-      setCookie(cookieDict, dataStore: dataStore) { _ in
+      setCookie(cookieDict, dataStore: dataStore, hostUrl: hostUrl) { _ in
         group.leave()
       }
     }
@@ -618,9 +627,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   private func setCookie(
     _ dict: [String: Any],
     dataStore: WKWebsiteDataStore,
+    hostUrl: URL,
     completion: @escaping (Bool) -> Void
   ) {
-    guard let cookie = makeCookie(from: dict) else {
+    guard let cookie = makeCookie(from: dict, hostUrl: hostUrl) else {
       completion(false)
       return
     }
@@ -629,12 +639,22 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
   }
 
-  private func makeCookie(from dict: [String: Any]) -> HTTPCookie? {
+  private func makeCookie(from dict: [String: Any], hostUrl: URL) -> HTTPCookie? {
+    let name = dict["name"] as? String ?? ""
+    let value = dict["value"] as? String ?? ""
+    let path = dict["path"] as? String ?? "/"
+    let domain = dict["domain"] as? String ?? hostUrl.host ?? ""
+    // Дополнительная защита от инъекции атрибутов кук на нативной стороне.
+    guard isCookieFieldValid(name, allowEmpty: false),
+          isCookieFieldValid(value, allowEmpty: true),
+          isCookieFieldValid(path, allowEmpty: true),
+          isCookieFieldValid(domain, allowEmpty: false) else {
+      return nil
+    }
     var properties: [HTTPCookiePropertyKey: Any] = [:]
-    properties[.name] = dict["name"] as? String ?? ""
-    properties[.value] = dict["value"] as? String ?? ""
-    properties[.path] = dict["path"] as? String ?? "/"
-    let domain = dict["domain"] as? String ?? url.host ?? ""
+    properties[.name] = name
+    properties[.value] = value
+    properties[.path] = path
     properties[.domain] = domain
     if dict["isSecure"] as? Bool == true {
       properties[.secure] = "TRUE"
@@ -643,5 +663,15 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       properties[HTTPCookiePropertyKey("HttpOnly")] = "YES"
     }
     return HTTPCookie(properties: properties)
+  }
+
+  private func isCookieFieldValid(_ value: String, allowEmpty: Bool) -> Bool {
+    if !allowEmpty && value.isEmpty {
+      return false
+    }
+    return !value.unicodeScalars.contains { scalar in
+      let code = scalar.value
+      return code < 0x20 || code == 0x7F || scalar == ";" || scalar == ","
+    }
   }
 }

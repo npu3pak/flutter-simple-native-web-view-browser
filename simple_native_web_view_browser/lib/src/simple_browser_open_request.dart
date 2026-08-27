@@ -74,7 +74,8 @@ class SimpleBrowserOpenRequest {
   /// Обработчик закрытия браузера.
   final SimpleBrowserOnClosed? onClosed;
 
-  const SimpleBrowserOpenRequest({
+  /// Создаёт запрос; [userAgent] с символами CR/LF отклоняется.
+  SimpleBrowserOpenRequest({
     required this.url,
     this.userAgent,
     this.usePersistentCookieStore = true,
@@ -88,5 +89,14 @@ class SimpleBrowserOpenRequest {
     this.onSchemeRedirect,
     this.onLoadStop,
     this.onClosed,
-  });
+  }) {
+    if (userAgent != null &&
+        (userAgent!.contains('\r') || userAgent!.contains('\n'))) {
+      throw ArgumentError.value(
+        userAgent,
+        'userAgent',
+        'содержит недопустимые символы CR/LF',
+      );
+    }
+  }
 }
