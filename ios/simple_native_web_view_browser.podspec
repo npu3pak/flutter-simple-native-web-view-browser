@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'simple_native_web_view_browser'
-  s.version          = '0.4.0'
+  s.version          = '0.4.1'
   s.summary          = 'Простой нативный браузер для iOS'
   s.description      = <<-DESC
 iOS implementation of simple_native_web_view_browser

@@ -1,6 +1,6 @@
 name: simple_native_web_view_browser
 description: "Простой полноэкранный нативный браузер на основе WebView"
-version: 0.4.0
+version: 0.4.1
 homepage: https://github.com/npu3pak/flutter-simple-native-web-view-browser
 repository: https://github.com/npu3pak/flutter-simple-native-web-view-browser
 topics:
