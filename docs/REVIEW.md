@@ -25,7 +25,8 @@
 ### 1.2. Способы проверки
 
 - Полное чтение исходников (Dart, Kotlin, Swift, XML, gradle, podspec).
-- Проверка корректности запуска: `flutter analyze` в трёх пакетах — **0 замечаний**;
+- Проверка корректности запуска: `flutter analyze` в четырёх пакетах
+  (ядро, android, ios, example) — **0 замечаний**;
   `flutter test` в `simple_native_web_view_browser` — **23/23 зелёных**.
 - Сопоставление реализованного поведения с `docs/requirements.md` и `README.md`.
 - Анализ атакующих поверхностей: MethodChannel, Intent-входы, WebView-настройки,
@@ -56,10 +57,12 @@ Dart-уровне, блокировка `file://` по умолчанию, ге�
 гарантированный результат `open()` при неудачной презентации на iOS).
 Покрытие тестами — сильное, особенно integration-уровня.
 
-**Найденных проблем: 12, из них Medium — 2, Low — 6, Info — 4.**
-Критических и High-уязвимостей не обнаружено. Все Medium-находки связаны с
-cookie-семантикой Android и отсутствием нативной валидации ввода — эксплуатация
-требует либо модифицированного процесса, либо специфических сценариев.
+**Найденных проблем: 12, из них Medium — 3 (S1, S2, S7), Low — 6 (S3–S6, S8, S9),
+Info — 3 (S10–S12).**
+Критических и High-уязвимостей не обнаружено. Medium-находки: S1/S2 — cookie-
+семантика Android (эксплуатация требует модифицированного процесса либо
+специфических сценариев), S7 — риск краша при обращении к destroyed WebView
+в узком окне «навигация в полёте + закрытие браузера».
 
 | ID | Severity | Priority | Кратко |
 |---|---|---|---|
@@ -71,7 +74,7 @@ cookie-семантикой Android и отсутствием нативной �
 | S6 | Low | P2 | Исключения пользовательских колбэков не защищены (Dart) |
 | S7 | Medium | P1 | Android: риск обращения к destroyed WebView → потенциальный краш |
 | S8 | Low | P2 | `getSerializable` deprecated; риск `TransactionTooLargeException` |
-| S9 | Info | P2 | Гонка двойного `open()` → две `BrowserActivity` |
+| S9 | Low | P2 | Гонка двойного `open()` → две `BrowserActivity` |
 | S10 | Info | P2 | Параметры WebView не зафиксированы явно (mixed content и др.) |
 | S11 | Info | P2 | User-Agent не санитизируется (CRLF) |
 | S12 | Info | P3 | Потеря событий при детаче плагина с открытым браузером |
@@ -230,7 +233,7 @@ cookie-семантикой Android и отсутствием нативной �
 
 ### 3.9. S9 — Гонка двойного `open()` → две `BrowserActivity`
 
-- **Severity:** Info | **Priority:** P2
+- **Severity:** Low | **Priority:** P2
 - **Локация:** `SimpleNativeWebViewBrowserPlugin.kt:114-127` (замена сессии только
   если `BrowserActivity.current != null`); `platform_interface.dart:60-90`.
 - **Описание.** Два подряд вызова `open()` из Dart: первый ещё не создал
@@ -696,7 +699,7 @@ iOS:
 
 | Уровень | Покрытие | Оценка |
 |---|---|---|
-| Unit (Dart) | Валидация кук (13 кейсов), платформенный интерфейс (open-аргументы, события, все 4 reopen-политики, сброс при ошибке канала) | Отлично |
+| Unit (Dart) | Валидация кук (9 тестов, 12 expect-проверок), платформенный интерфейс (open-аргументы, события, все 4 reopen-политики, сброс при ошибке канала) | Отлично |
 | Integration (Android/iOS) | open→onLoadStop→close→onClosed; кастомная схема (стартовая/JS/302); однократность onSchemeRedirect; двойное закрытие; discard; replaceCallbacks; полная замена; initialCookies+reloadWithCookies; блок file://; enableCookiesAndroid=false (с локальным HTTP-сервером) | Отлично |
 | UI-flow | Открытие по кастомной схеме → журнал событий → закрытие | Средне (1 сценарий) |
 | Native unit (Kotlin/Swift) | — | Отсутствует |
@@ -715,7 +718,7 @@ iOS:
 
 ### 7.3. Состояние
 
-- `flutter analyze`: 0 замечаний во всех трёх пакетах.
+- `flutter analyze`: 0 замечаний во всех четырёх пакетах (ядро, android, ios, example).
 - `flutter test`: 23/23 зелёных.
 
 ---
