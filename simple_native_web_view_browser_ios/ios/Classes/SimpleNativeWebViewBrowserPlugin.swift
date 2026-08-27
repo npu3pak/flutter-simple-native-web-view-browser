@@ -55,6 +55,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
         urlBarMode: BrowserUrlBarMode(
           rawValue: args["urlBarMode"] as? String ?? "hidden") ?? .hidden,
         enableDebugging: args["enableDebugging"] as? Bool ?? false,
+        allowFileAccess: args["allowFileAccess"] as? Bool ?? false,
         result: result)
 
     case "reloadWithCookies":
@@ -96,6 +97,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
     let urlBarMode = BrowserUrlBarMode(
       rawValue: args["urlBarMode"] as? String ?? "hidden") ?? .hidden
     let enableDebugging = args["enableDebugging"] as? Bool ?? false
+    let allowFileAccess = args["allowFileAccess"] as? Bool ?? false
 
     // Повторное открытие: заменяем сессию в существующем браузере.
     if let browserViewController = browserViewController {
@@ -105,6 +107,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
         initialCookies: initialCookies,
         urlBarMode: urlBarMode,
         enableDebugging: enableDebugging,
+        allowFileAccess: allowFileAccess,
         result: result)
       return
     }
@@ -117,6 +120,19 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       return
     }
 
+    // Если верхний контроллер занят (present/dismiss) или отсутствует
+    // в иерархии окон — презентация гарантированно не начнётся, и
+    // completion не вызовется: open() завис бы навсегда.
+    guard !topViewController.isBeingPresented,
+          !topViewController.isBeingDismissed,
+          topViewController.viewIfLoaded?.window != nil else {
+      result(FlutterError(
+        code: "no_view_controller",
+        message: "Нельзя показать браузер: контроллер занят",
+        details: nil))
+      return
+    }
+
     let controller = BrowserViewController(
       url: url,
       userAgent: userAgent,
@@ -124,6 +140,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       initialCookies: initialCookies,
       urlBarMode: urlBarMode,
       enableDebugging: enableDebugging,
+      allowFileAccess: allowFileAccess,
       channel: channel)
     controller.onClosed = { [weak self] in
       self?.browserViewController = nil
@@ -132,7 +149,17 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
     controller.modalTransitionStyle = .coverVertical
 
     browserViewController = controller
-    topViewController.present(controller, animated: true) {
+    topViewController.present(controller, animated: true) { [weak self] in
+      // Если по какой-то причине презентация не началась, контроллер
+      // не должен остаться активной сессией.
+      guard let controller = self?.browserViewController, controller.isBeingPresented else {
+        self?.browserViewController = nil
+        result(FlutterError(
+          code: "present_failed",
+          message: "Не удалось показать браузер",
+          details: nil))
+        return
+      }
       result(nil)
     }
   }

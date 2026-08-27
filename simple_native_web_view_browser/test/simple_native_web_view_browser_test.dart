@@ -37,7 +37,7 @@ void main() {
         userAgent: 'custom-ua',
         usePersistentCookieStore: false,
         enableDebugging: true,
-        initialCookies: const [
+        initialCookies: [
           SimpleBrowserCookie(
             name: 'a',
             value: 'b',
@@ -60,6 +60,8 @@ void main() {
     expect(args['usePersistentCookieStore'], false);
     expect(args['enableDebugging'], true);
     expect(args['urlBarMode'], 'readOnly');
+    expect(args['enableCookiesAndroid'], true);
+    expect(args['allowFileAccess'], false);
     final cookies = args['initialCookies'] as List<Object?>;
     expect(cookies, hasLength(1));
     final cookie = cookies.single as Map<Object?, Object?>;
@@ -82,10 +84,27 @@ void main() {
     expect(args['userAgent'], isNull);
   });
 
+  test('enableCookiesAndroid и allowFileAccess передаются на нативную сторону',
+      () async {
+    final browser = SimpleNativeBrowser();
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        enableCookiesAndroid: false,
+        allowFileAccess: true,
+      ),
+    );
+
+    expect(outgoingCalls, hasLength(1));
+    final args = outgoingCalls.single.arguments as Map<Object?, Object?>;
+    expect(args['enableCookiesAndroid'], false);
+    expect(args['allowFileAccess'], true);
+  });
+
   test('close и reloadWithCookies отправляют корректные вызовы', () async {
     final browser = SimpleNativeBrowser();
     await browser.close();
-    await browser.reloadWithCookies(const [
+    await browser.reloadWithCookies([
       SimpleBrowserCookie(name: 'c', value: 'd', path: '/'),
     ]);
 

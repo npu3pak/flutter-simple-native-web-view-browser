@@ -41,7 +41,21 @@ class SimpleBrowserOpenRequest {
 
   /// Включает режим отладки WebView: веб-инспектор
   /// (Safari Web Inspector / Chrome DevTools).
+  /// В release-сборках игнорируется.
   final bool enableDebugging;
+
+  /// Разрешить установку и передачу кук.
+  ///
+  /// Действует только на Android (`CookieManager.setAcceptCookie`); на iOS
+  /// куки в WebView не отключаются. Отключение применяется к процессу
+  /// Android целиком и снимается при закрытии браузера.
+  final bool enableCookiesAndroid;
+
+  /// Разрешить WebView загрузку локальных файлов (`file://`).
+  ///
+  /// По умолчанию выключено: адреса `file://` не загружаются на обеих
+  /// платформах и передаются приложению через `onSchemeRedirect`.
+  final bool allowFileAccess;
 
   /// Поведение при повторном открытии, когда браузер уже открыт.
   /// Если не задан — применяется полная замена сессии
@@ -67,6 +81,8 @@ class SimpleBrowserOpenRequest {
     this.initialCookies = const [],
     this.urlBarMode = SimpleBrowserUrlBarMode.hidden,
     this.enableDebugging = false,
+    this.enableCookiesAndroid = true,
+    this.allowFileAccess = false,
     this.reopenPolicy,
     this.onLoadError,
     this.onSchemeRedirect,

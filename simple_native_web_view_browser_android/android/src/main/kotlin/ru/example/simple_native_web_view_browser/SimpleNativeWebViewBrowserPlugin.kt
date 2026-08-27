@@ -90,6 +90,8 @@ class SimpleNativeWebViewBrowserPlugin :
             initialCookies = initialCookies,
             urlBarMode = call.argument<String>("urlBarMode") ?: "hidden",
             enableDebugging = call.argument<Boolean>("enableDebugging") ?: false,
+            enableCookiesAndroid = call.argument<Boolean>("enableCookiesAndroid") ?: true,
+            allowFileAccess = call.argument<Boolean>("allowFileAccess") ?: false,
         )
         result.success(null)
     }
@@ -106,6 +108,8 @@ class SimpleNativeWebViewBrowserPlugin :
             ?.toList() ?: emptyList()
         val urlBarMode = call.argument<String>("urlBarMode") ?: "hidden"
         val enableDebugging = call.argument<Boolean>("enableDebugging") ?: false
+        val enableCookiesAndroid = call.argument<Boolean>("enableCookiesAndroid") ?: true
+        val allowFileAccess = call.argument<Boolean>("allowFileAccess") ?: false
 
         // Повторное открытие: заменяем сессию в существующем браузере.
         BrowserActivity.current?.let { current ->
@@ -115,6 +119,8 @@ class SimpleNativeWebViewBrowserPlugin :
                 initialCookies = initialCookies,
                 urlBarMode = urlBarMode,
                 enableDebugging = enableDebugging,
+                enableCookiesAndroid = enableCookiesAndroid,
+                allowFileAccess = allowFileAccess,
             )
             result.success(null)
             return
@@ -146,6 +152,14 @@ class SimpleNativeWebViewBrowserPlugin :
             putExtra(
                 BrowserActivity.EXTRA_ENABLE_DEBUGGING,
                 enableDebugging,
+            )
+            putExtra(
+                BrowserActivity.EXTRA_ENABLE_COOKIES,
+                enableCookiesAndroid,
+            )
+            putExtra(
+                BrowserActivity.EXTRA_ALLOW_FILE_ACCESS,
+                allowFileAccess,
             )
         }
         context.startActivity(intent)

@@ -382,7 +382,7 @@ void main() {
       SimpleBrowserOpenRequest(
         url: Uri.parse('https://example.com'),
         userAgent: 'integration-test-ua',
-        initialCookies: const [
+        initialCookies: [
           SimpleBrowserCookie(name: 'init_cookie', value: 'init_value', path: '/'),
         ],
         onLoadStop: (url) {
@@ -399,7 +399,7 @@ void main() {
 
     await firstStop.future.timeout(const Duration(seconds: 30));
 
-    await browser.reloadWithCookies(const [
+    await browser.reloadWithCookies([
       SimpleBrowserCookie(name: 'reload_cookie', value: 'reload_value', path: '/'),
     ]);
 
@@ -407,5 +407,101 @@ void main() {
     expect(stops, hasLength(2));
 
     await browser.close();
+  });
+
+  testWidgets('file:// заблокирован → onSchemeRedirect', (tester) async {
+    final browser = SimpleNativeBrowser();
+    final schemeUrl = Completer<Uri>();
+    final closed = Completer<void>();
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('file:///nonexistent/file.html'),
+        userAgent: 'integration-test-ua',
+        onSchemeRedirect: (url) {
+          if (!schemeUrl.isCompleted) {
+            schemeUrl.complete(url);
+          }
+        },
+        onClosed: () {
+          if (!closed.isCompleted) {
+            closed.complete();
+          }
+        },
+      ),
+    );
+
+    final redirected = await schemeUrl.future.timeout(const Duration(seconds: 15));
+    expect(redirected.scheme, 'file');
+    expect(redirected.toString(), contains('nonexistent'));
+
+    await browser.close();
+    await closed.future.timeout(const Duration(seconds: 20));
+  });
+
+  testWidgets('enableCookiesAndroid=false: Set-Cookie игнорируется (Android)',
+      (tester) async {
+    if (!Platform.isAndroid) {
+      // Параметр действует только на Android.
+      return;
+    }
+
+    final browser = SimpleNativeBrowser();
+    final closed = Completer<void>();
+    final sentCookies = <String>[];
+
+    // Локальный HTTP-сервер: /set отдаёт Set-Cookie, /echo возвращает
+    // полученные куки (их должен быть пустой список).
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) {
+      if (request.uri.path == '/set') {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.set(HttpHeaders.setCookieHeader, 'test_cookie=abc; Path=/')
+          ..close();
+      } else if (request.uri.path == '/echo') {
+        sentCookies.addAll(request.headers[HttpHeaders.cookieHeader] ?? const []);
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..close();
+      } else {
+        request.response
+          ..statusCode = HttpStatus.notFound
+          ..close();
+      }
+    });
+
+    Future<void> openPage(String path) async {
+      final loadedOnce = Completer<Uri>();
+      await browser.open(
+        SimpleBrowserOpenRequest(
+          url: Uri.parse('http://127.0.0.1:${server.port}$path'),
+          userAgent: 'integration-test-ua',
+          enableCookiesAndroid: false,
+          onLoadStop: (url) {
+            if (!loadedOnce.isCompleted) {
+              loadedOnce.complete(url);
+            }
+          },
+          onClosed: () {
+            if (!closed.isCompleted) {
+              closed.complete();
+            }
+          },
+        ),
+      );
+      await loadedOnce.future.timeout(const Duration(seconds: 30));
+      await browser.close();
+      await closed.future.timeout(const Duration(seconds: 20));
+    }
+
+    // Сессия 1: сервер отдаёт Set-Cookie — кука не должна приняться.
+    await openPage('/set');
+
+    // Сессия 2: кука не должна уйти на сервер.
+    await openPage('/echo');
+    expect(sentCookies, isEmpty,
+        reason: 'кука не должна была сохраниться при enableCookiesAndroid=false');
   });
 }

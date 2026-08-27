@@ -24,6 +24,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   private var initialCookies: [[String: Any]]
   private var urlBarMode: BrowserUrlBarMode
   private var enableDebugging: Bool
+  private var allowFileAccess: Bool
   private weak var channel: FlutterMethodChannel?
 
   private var webView: WKWebView!
@@ -48,6 +49,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     initialCookies: [[String: Any]],
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
+    allowFileAccess: Bool,
     channel: FlutterMethodChannel?
   ) {
     self.url = url
@@ -56,6 +58,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     self.initialCookies = initialCookies
     self.urlBarMode = urlBarMode
     self.enableDebugging = enableDebugging
+    self.allowFileAccess = allowFileAccess
     self.channel = channel
     super.init(nibName: nil, bundle: nil)
   }
@@ -150,7 +153,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   /// напрямую как перенаправление на кастомную схему.
   private func loadInitialPage() {
     guard let scheme = url.scheme?.lowercased(),
-          Self.isLoadableScheme(scheme) else {
+          isLoadableScheme(scheme) else {
       notifySchemeRedirect(url.absoluteString)
       return
     }
@@ -164,13 +167,15 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     userAgent: String,
     initialCookies: [[String: Any]],
     urlBarMode: BrowserUrlBarMode,
-    enableDebugging: Bool
+    enableDebugging: Bool,
+    allowFileAccess: Bool
   ) {
     self.url = url
     self.userAgent = userAgent
     self.initialCookies = initialCookies
     self.urlBarMode = urlBarMode
     self.enableDebugging = enableDebugging
+    self.allowFileAccess = allowFileAccess
     schemeRedirectNotified = false
 
     if userAgent.isEmpty {
@@ -178,11 +183,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     } else {
       webView.customUserAgent = userAgent
     }
-    if enableDebugging {
-      // Веб-инспектор (Safari Web Inspector) доступен с iOS 16.4.
-      if #available(iOS 16.4, *) {
-        webView.isInspectable = true
-      }
+    // Инспектор переключаем в обе стороны: повторное открытие
+    // с enableDebugging=false должно отключать его.
+    if #available(iOS 16.4, *) {
+      webView.isInspectable = enableDebugging
     }
     applyUrlBarMode()
   }
@@ -196,6 +200,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     initialCookies: [[String: Any]],
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
+    allowFileAccess: Bool,
     result: @escaping FlutterResult
   ) {
     applyReopenSettings(
@@ -203,7 +208,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       userAgent: userAgent,
       initialCookies: initialCookies,
       urlBarMode: urlBarMode,
-      enableDebugging: enableDebugging)
+      enableDebugging: enableDebugging,
+      allowFileAccess: allowFileAccess)
 
     setCookies(initialCookies) { [weak self] in
       guard let self = self else { return }
@@ -220,6 +226,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     initialCookies: [[String: Any]],
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
+    allowFileAccess: Bool,
     result: @escaping FlutterResult
   ) {
     applyReopenSettings(
@@ -227,7 +234,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       userAgent: userAgent,
       initialCookies: initialCookies,
       urlBarMode: urlBarMode,
-      enableDebugging: enableDebugging)
+      enableDebugging: enableDebugging,
+      allowFileAccess: allowFileAccess)
     // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
     setCookies(initialCookies) {
       result(nil)
@@ -235,8 +243,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   }
 
   /// Можно ли загрузить адрес с указанной схемой в WebView.
-  private static func isLoadableScheme(_ scheme: String) -> Bool {
-    ["http", "https", "data", "about", "file", "blob"].contains(scheme)
+  private func isLoadableScheme(_ scheme: String) -> Bool {
+    var loadable = ["http", "https", "data", "about", "blob"]
+    if allowFileAccess {
+      loadable.append("file")
+    }
+    return loadable.contains(scheme)
   }
 
   /// Единственная доставка перенаправления на кастомную схему за сеанс
@@ -489,7 +501,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   ) {
     guard let url = webView.url,
           let scheme = url.scheme?.lowercased(),
-          !Self.isLoadableScheme(scheme) else {
+          !isLoadableScheme(scheme) else {
       return
     }
     notifySchemeRedirect(url.absoluteString)
@@ -506,7 +518,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
     if let scheme = navigationAction.request.url?.scheme?.lowercased(),
-       !Self.isLoadableScheme(scheme) {
+       !isLoadableScheme(scheme) {
       notifySchemeRedirect(navigationAction.request.url?.absoluteString)
       decisionHandler(.cancel)
       return
@@ -557,7 +569,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     // Кастомная схема (не загружаемая WebView) — это перенаправление
     // в приложение, а не ошибка загрузки.
     if let scheme = failingUrl?.scheme?.lowercased(),
-       !Self.isLoadableScheme(scheme) {
+       !isLoadableScheme(scheme) {
       notifySchemeRedirect(failingUrl?.absoluteString)
       return
     }

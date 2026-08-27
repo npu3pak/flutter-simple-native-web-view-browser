@@ -37,6 +37,8 @@ class BrowserActivity : AppCompatActivity() {
         const val EXTRA_INITIAL_COOKIES = "initialCookies"
         const val EXTRA_URL_BAR_MODE = "urlBarMode"
         const val EXTRA_ENABLE_DEBUGGING = "enableDebugging"
+        const val EXTRA_ENABLE_COOKIES = "enableCookiesAndroid"
+        const val EXTRA_ALLOW_FILE_ACCESS = "allowFileAccess"
 
         /** Текущая открытая Activity (единственный экземпляр браузера). */
         var current: BrowserActivity? = null
@@ -53,7 +55,15 @@ class BrowserActivity : AppCompatActivity() {
     private var initialCookies = mutableListOf<Map<String, Any?>>()
     private var urlBarMode = "hidden"
     private var enableDebugging = false
+    private var enableCookiesAndroid = true
+    private var allowFileAccess = false
     private var closedNotified = false
+
+    /** Предыдущее значение приёма кук процесса — восстанавливается в onDestroy. */
+    private var previousAcceptCookie: Boolean? = null
+
+    /** Guard единственной доставки onSchemeRedirect за сессию (аналог iOS). */
+    private var schemeRedirectNotified = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +82,8 @@ class BrowserActivity : AppCompatActivity() {
         )
         urlBarMode = extras.getString(EXTRA_URL_BAR_MODE) ?: "hidden"
         enableDebugging = extras.getBoolean(EXTRA_ENABLE_DEBUGGING, false)
+        enableCookiesAndroid = extras.getBoolean(EXTRA_ENABLE_COOKIES, true)
+        allowFileAccess = extras.getBoolean(EXTRA_ALLOW_FILE_ACCESS, false)
 
         setContentView(R.layout.browser_activity)
 
@@ -88,6 +100,8 @@ class BrowserActivity : AppCompatActivity() {
             ?.let { webView.settings.userAgentString = it }
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
+        applyCookieAcceptance()
+        applyFileAccessSettings()
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -98,7 +112,7 @@ class BrowserActivity : AppCompatActivity() {
                     // Кастомная схема: отдаём приложению и не загружаем —
                     // иначе WebView покажет системный экран ошибки
                     // ERR_UNKNOWN_URL_SCHEME.
-                    SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", urlString)
+                    notifySchemeRedirect(urlString)
                     return true
                 }
                 return false
@@ -118,6 +132,11 @@ class BrowserActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
                 error: WebResourceError?,
             ) {
+                // Ошибки вторичных ресурсов (картинки, CSS, iframe)
+                // приложению не сообщаются — только главный кадр.
+                if (request?.isForMainFrame != true) {
+                    return
+                }
                 updateChromeState()
                 // Кастомная схема (например, demoapp://...) не загружается:
                 // ERR_UNKNOWN_URL_SCHEME приходит сюда с адресом редиректа.
@@ -125,7 +144,7 @@ class BrowserActivity : AppCompatActivity() {
                 if (isLoadableScheme(Uri.parse(failingUrl).scheme)) {
                     SimpleNativeWebViewBrowserPlugin.sendEvent("onLoadError", failingUrl)
                 } else {
-                    SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", failingUrl)
+                    notifySchemeRedirect(failingUrl)
                 }
             }
         }
@@ -237,6 +256,10 @@ class BrowserActivity : AppCompatActivity() {
         if (!urlString.contains("://")) {
             urlString = "https://$urlString"
         }
+        if (!isLoadableScheme(Uri.parse(urlString).scheme)) {
+            notifySchemeRedirect(urlString)
+            return
+        }
         webView.loadUrl(urlString)
     }
 
@@ -282,7 +305,7 @@ class BrowserActivity : AppCompatActivity() {
     private fun loadInitialPage() {
         val scheme = Uri.parse(url).scheme?.lowercase()
         if (!isLoadableScheme(scheme)) {
-            SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", url)
+            notifySchemeRedirect(url)
             return
         }
         webView.loadUrl(url)
@@ -295,12 +318,17 @@ class BrowserActivity : AppCompatActivity() {
         initialCookies: List<Map<String, Any?>>,
         urlBarMode: String,
         enableDebugging: Boolean,
+        enableCookiesAndroid: Boolean,
+        allowFileAccess: Boolean,
     ) {
         this.url = url
         this.urlBarMode = urlBarMode
         this.enableDebugging = enableDebugging
+        this.enableCookiesAndroid = enableCookiesAndroid
+        this.allowFileAccess = allowFileAccess
         this.initialCookies.clear()
         this.initialCookies.addAll(initialCookies)
+        schemeRedirectNotified = false
 
         // UA: переданный — применяем, пустой/отсутствует — системный дефолт.
         userAgent?.takeIf { it.isNotEmpty() }?.let {
@@ -310,6 +338,8 @@ class BrowserActivity : AppCompatActivity() {
         }
         // Инспектор глобальный для процесса: применяем переданное значение.
         WebView.setWebContentsDebuggingEnabled(enableDebugging)
+        applyCookieAcceptance()
+        applyFileAccessSettings()
         applyUrlBarMode()
     }
 
@@ -320,12 +350,17 @@ class BrowserActivity : AppCompatActivity() {
         initialCookies: List<Map<String, Any?>>,
         urlBarMode: String,
         enableDebugging: Boolean,
+        enableCookiesAndroid: Boolean,
+        allowFileAccess: Boolean,
     ) {
-        applyReopenSettings(url, userAgent, initialCookies, urlBarMode, enableDebugging)
+        applyReopenSettings(
+            url, userAgent, initialCookies, urlBarMode, enableDebugging,
+            enableCookiesAndroid, allowFileAccess,
+        )
 
         val scheme = Uri.parse(url).scheme?.lowercase()
         if (!isLoadableScheme(scheme)) {
-            SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", url)
+            notifySchemeRedirect(url)
             return
         }
         setCookies(this.initialCookies) {
@@ -340,15 +375,50 @@ class BrowserActivity : AppCompatActivity() {
         initialCookies: List<Map<String, Any?>>,
         urlBarMode: String,
         enableDebugging: Boolean,
+        enableCookiesAndroid: Boolean,
+        allowFileAccess: Boolean,
     ) {
-        applyReopenSettings(url, userAgent, initialCookies, urlBarMode, enableDebugging)
+        applyReopenSettings(
+            url, userAgent, initialCookies, urlBarMode, enableDebugging,
+            enableCookiesAndroid, allowFileAccess,
+        )
         // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
         setCookies(this.initialCookies) { }
     }
 
     /** Можно ли загрузить адрес с указанной схемой в WebView. */
-    private fun isLoadableScheme(scheme: String?): Boolean =
-        scheme in listOf("http", "https", "data", "about", "file", "blob")
+    private fun isLoadableScheme(scheme: String?): Boolean {
+        val loadable = mutableListOf("http", "https", "data", "about", "blob")
+        if (allowFileAccess) {
+            loadable += "file"
+        }
+        return scheme in loadable
+    }
+
+    /** Единственная доставка onSchemeRedirect за сеанс браузера. */
+    private fun notifySchemeRedirect(urlString: String) {
+        if (schemeRedirectNotified) {
+            return
+        }
+        schemeRedirectNotified = true
+        SimpleNativeWebViewBrowserPlugin.sendEvent("onSchemeRedirect", urlString)
+    }
+
+    /** Применяет приём кук процесса; предыдущее значение восстанавливается
+     *  в onDestroy (флаг глобальный для процесса). */
+    private fun applyCookieAcceptance() {
+        if (previousAcceptCookie == null) {
+            previousAcceptCookie = CookieManager.getInstance().acceptCookie()
+        }
+        CookieManager.getInstance().setAcceptCookie(enableCookiesAndroid)
+    }
+
+    /** Жёсткие настройки доступа к файлам WebView. */
+    private fun applyFileAccessSettings() {
+        webView.settings.allowFileAccess = allowFileAccess
+        webView.settings.allowFileAccessFromFileURLs = false
+        webView.settings.allowUniversalAccessFromFileURLs = false
+    }
 
     /** Устанавливает куки и перезагружает текущую страницу. */
     fun reloadWithCookies(cookies: List<Map<String, Any?>>) {
@@ -385,8 +455,14 @@ class BrowserActivity : AppCompatActivity() {
     override fun onDestroy() {
         if (current === this) {
             current = null
-            notifyClosed()
+            // При пересоздании (смена конфигурации) браузер не закрывался:
+            // ложный onClosed не отправляем.
+            if (!isChangingConfigurations) {
+                notifyClosed()
+            }
         }
+        // Возвращаем приём кук процесса в исходное состояние.
+        previousAcceptCookie?.let { CookieManager.getInstance().setAcceptCookie(it) }
         webView.settings.javaScriptEnabled = false
         webView.removeAllViews()
         webView.destroy()

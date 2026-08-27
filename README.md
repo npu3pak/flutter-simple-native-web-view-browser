@@ -22,7 +22,6 @@
 - [События](#события)
 - [Скриншоты](#скриншоты)
 - [Отладка WebView](#отладка-webview)
-- [Известные особенности](#известные-особенности)
 - [Повторное открытие браузера](#повторное-открытие-браузера)
 - [Обработка пользовательских схем URI и использование для аутентификации](#обработка-пользовательских-схем-uri-и-использование-для-аутентификации)
 - [Известные проблемы](#известные-проблемы)
@@ -118,7 +117,11 @@ await browser.close();
 
 - **`onLoadStop`** — обработчик, который вызывается после завершения загрузки страницы. Тип — `void Function(Uri url)`. По умолчанию не задан. Обработчик получает адрес загруженной страницы.
 
-- **`enableDebugging`** — включает режим отладки WebView: страницу браузера можно открыть в веб-инспекторе (Safari Web Inspector на Mac, Chrome DevTools на Android). Тип — `bool`. Значение по умолчанию — `false`. На iOS веб-инспектор доступен начиная с версии 16.4.
+- **`enableDebugging`** — включает режим отладки WebView: страницу браузера можно открыть в веб-инспекторе (Safari Web Inspector на Mac, Chrome DevTools на Android). Тип — `bool`. Значение по умолчанию — `false`. На iOS веб-инспектор доступен начиная с версии 16.4. В release-сборках параметр игнорируется.
+
+- **`enableCookiesAndroid`** — разрешить установку и передачу кук. Тип — `bool`. Значение по умолчанию — `true`. Действует только на Android (`CookieManager.setAcceptCookie`); на iOS куки WebView не отключаются. Отключение применяется к процессу Android целиком, поэтому может повлиять на другие WebView приложения; после закрытия браузера приём кук возвращается в исходное состояние.
+
+- **`allowFileAccess`** — разрешить WebView загрузку локальных файлов (`file://`). Тип — `bool`. Значение по умолчанию — `false`. При `false` адреса `file://` не загружаются на обеих платформах и передаются приложению через `onSchemeRedirect`. При `true` загрузка локальных файлов доступна (используйте только для доверенного контента: WebView может читать файлы, доступные приложению).
 
 - **`reopenPolicy`** — функция, решающая, что делать при повторном открытии, когда браузер уже открыт: отбросить новый запрос, заменить только обработчики, применить настройки или полностью заменить сессию с перезагрузкой страницы. Тип — `SimpleBrowserReopenPolicy Function(SimpleBrowserOpenRequest oldRequest, SimpleBrowserOpenRequest newRequest)`. По умолчанию применяется полная замена.
 
@@ -320,16 +323,19 @@ reopenPolicy: (oldRequest, newRequest) =>
 final browser = SimpleNativeBrowser();
 var redirectHandled = false;
 
-const redirectPrefix = 'myapp://login';
-
 void handleRedirect(Uri url) {
   if (redirectHandled) {
     return;
   }
-  final urlString = url.toString();
-  if (urlString.toLowerCase().startsWith(redirectPrefix.toLowerCase())) {
+  // Проверяем не только схему, но и источник и обязательные параметры:
+  // любая страница-контент может навестить myapp://... с произвольными
+  // данными, поэтому доверять одному префиксу нельзя.
+  final isLoginRedirect = url.scheme.toLowerCase() == 'myapp' &&
+      url.host.toLowerCase() == 'login' &&
+      url.queryParameters.containsKey('code');
+  if (isLoginRedirect) {
     redirectHandled = true;
-    print('Аутентификация завершена: $urlString');
+    print('Аутентификация завершена: $url');
     browser.close();
   }
 }
@@ -349,6 +355,15 @@ await browser.open(
   ),
 );
 ```
+
+## HTTP-контент и сетевые требования
+
+Плагин не разрешает незащищённый трафик сам по себе — политики HTTP-контента задаёт приложение:
+
+- **Android.** Начиная с targetSdk 28 платформа блокирует `http://` по умолчанию. Чтобы открывать страницы по HTTP (например, локальный сервер разработки), приложение должно включить `android:usesCleartextTraffic="true"` в своём манифесте (или настроить network security config).
+- **iOS.** App Transport Security (ATS) блокирует произвольный HTTP-трафик. Для http-страниц приложение должно добавить исключения ATS в свой `Info.plist` (например, `NSAllowsLocalNetworking` для локальных адресов).
+
+Если приложение не настроило эти политики, страницы по `http://` не откроются (на Android будет ошибка загрузки, на iOS — отказ навигации).
 
 ## Известные проблемы
 

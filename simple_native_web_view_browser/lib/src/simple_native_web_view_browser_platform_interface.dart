@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
@@ -104,6 +105,11 @@ class MethodChannelSimpleNativeWebViewBrowser
   }
 
   Map<String, Object?> _openArgs(SimpleBrowserOpenRequest request) {
+    final enableDebugging = request.enableDebugging && !kReleaseMode;
+    if (request.enableDebugging && kReleaseMode) {
+      debugPrint('simple_native_web_view_browser: enableDebugging '
+          'игнорируется в release-сборке');
+    }
     return {
       'url': request.url.toString(),
       'userAgent': request.userAgent,
@@ -112,7 +118,9 @@ class MethodChannelSimpleNativeWebViewBrowser
         for (final cookie in request.initialCookies) _cookieToMap(cookie),
       ],
       'urlBarMode': request.urlBarMode.name,
-      'enableDebugging': request.enableDebugging,
+      'enableDebugging': enableDebugging,
+      'enableCookiesAndroid': request.enableCookiesAndroid,
+      'allowFileAccess': request.allowFileAccess,
     };
   }
 
