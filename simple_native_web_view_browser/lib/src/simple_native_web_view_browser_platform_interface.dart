@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -50,14 +52,22 @@ class MethodChannelSimpleNativeWebViewBrowser
     extends SimpleNativeWebViewBrowserPlatform {
   static const _channel = MethodChannel('simple_native_web_view_browser');
 
-  SimpleBrowserOpenRequest? _activeRequest;
+  /// Таймаут ожидания нативного onClosed после close(): если событие
+  /// потеряно (например, детач движка), сессия закрывается принудительно.
+  final Duration closeFallbackTimeout;
 
-  MethodChannelSimpleNativeWebViewBrowser() {
+  SimpleBrowserOpenRequest? _activeRequest;
+  Timer? _closeFallbackTimer;
+
+  MethodChannelSimpleNativeWebViewBrowser({
+    this.closeFallbackTimeout = const Duration(seconds: 5),
+  }) {
     _channel.setMethodCallHandler(_handleNativeEvent);
   }
 
   @override
   Future<void> open(SimpleBrowserOpenRequest request) async {
+    _closeFallbackTimer?.cancel();
     final previous = _activeRequest;
     if (previous != null) {
       final policy = request.reopenPolicy?.call(previous, request) ??
@@ -127,6 +137,26 @@ class MethodChannelSimpleNativeWebViewBrowser
   @override
   Future<void> close() async {
     await _channel.invokeMethod<void>('close');
+    _scheduleCloseFallback();
+  }
+
+  /// Запускает таймер принудительного закрытия сессии на случай, если
+  /// нативный onClosed не придёт (детaч движка, потеря события).
+  void _scheduleCloseFallback() {
+    if (_activeRequest == null) {
+      return;
+    }
+    _closeFallbackTimer?.cancel();
+    _closeFallbackTimer = Timer(closeFallbackTimeout, _forceCloseSession);
+  }
+
+  void _forceCloseSession() {
+    final request = _activeRequest;
+    if (request == null) {
+      return;
+    }
+    _activeRequest = null;
+    _callSafely(() => request.onClosed?.call());
   }
 
   @override
@@ -155,6 +185,7 @@ class MethodChannelSimpleNativeWebViewBrowser
           _callSafely(() => request?.onSchemeRedirect?.call(url));
         }
       case 'onClosed':
+        _closeFallbackTimer?.cancel();
         _activeRequest = null;
         _callSafely(() => request?.onClosed?.call());
     }

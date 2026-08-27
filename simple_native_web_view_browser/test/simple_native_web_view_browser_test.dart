@@ -197,6 +197,88 @@ void main() {
     expect(stopped, [Uri.parse('https://example.com/stop')]);
   });
 
+  test('close(): потерянный onClosed закрывает сессию по таймауту', () async {
+    final browser = SimpleNativeBrowser();
+    SimpleNativeWebViewBrowserPlatform.instance =
+        MethodChannelSimpleNativeWebViewBrowser(
+      closeFallbackTimeout: const Duration(milliseconds: 50),
+    );
+    var closedCount = 0;
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        userAgent: 'ua',
+        onClosed: () => closedCount++,
+      ),
+    );
+
+    await browser.close();
+    expect(closedCount, 0, reason: 'onClosed не вызывается до таймаута');
+
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(closedCount, 1, reason: 'onClosed вызван после потери события');
+
+    // Сессия сброшена: следующий open идёт по пути нового канала.
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com/2'),
+        userAgent: 'ua',
+      ),
+    );
+    expect(outgoingCalls.map((c) => c.method), ['open', 'close', 'open']);
+  });
+
+  test('close(): onClosed до таймаута отменяет fallback', () async {
+    final browser = SimpleNativeBrowser();
+    SimpleNativeWebViewBrowserPlatform.instance =
+        MethodChannelSimpleNativeWebViewBrowser(
+      closeFallbackTimeout: const Duration(milliseconds: 50),
+    );
+    var closedCount = 0;
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        userAgent: 'ua',
+        onClosed: () => closedCount++,
+      ),
+    );
+
+    await browser.close();
+    await _sendNativeEvent('onClosed', null);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(closedCount, 1, reason: 'fallback не должен дублировать onClosed');
+  });
+
+  test('open() отменяет fallback-таймер предыдущей сессии', () async {
+    final browser = SimpleNativeBrowser();
+    SimpleNativeWebViewBrowserPlatform.instance =
+        MethodChannelSimpleNativeWebViewBrowser(
+      closeFallbackTimeout: const Duration(milliseconds: 50),
+    );
+    var oldClosed = 0;
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        userAgent: 'ua',
+        onClosed: () => oldClosed++,
+      ),
+    );
+    await browser.close();
+
+    // Новая сессия открывается до срабатывания таймера старой.
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com/2'),
+        userAgent: 'ua',
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(oldClosed, 0, reason: 'fallback старой сессии отменён');
+  });
+
   test('reopenPolicy без резолвера: полная замена по умолчанию', () async {
     final browser = SimpleNativeBrowser();
     final firstStops = <Uri>[];

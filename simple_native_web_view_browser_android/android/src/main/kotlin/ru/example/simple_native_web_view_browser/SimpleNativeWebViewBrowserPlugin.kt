@@ -39,6 +39,10 @@ class SimpleNativeWebViewBrowserPlugin :
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        // Детач движка с открытым браузером: завершаем Activity. onClosed
+        // в этом сценарии может не дойти до Dart (канал уже обнулён) —
+        // активную сессию принудительно закрывает fallback-таймер Dart.
+        BrowserActivity.current?.finish()
         channel?.setMethodCallHandler(null)
         channel = null
     }
