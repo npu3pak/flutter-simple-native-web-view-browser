@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:simple_native_web_view_browser/simple_native_web_view_browser.dart';
 
+import 'minimal_example_page.dart';
+
 /// Пользовательский агент Chrome для Android.
 const kChromeAndroidUserAgent =
     'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 '
@@ -168,7 +170,22 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Simple Native WebView Browser')),
+      appBar: AppBar(
+        title: const Text('Simple Native WebView Browser'),
+        actions: [
+          TextButton(
+            key: const ValueKey('minimalExampleButton'),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MinimalExamplePage(),
+                ),
+              );
+            },
+            child: const Text('Минимальный пример'),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
