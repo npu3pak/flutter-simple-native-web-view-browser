@@ -159,6 +159,23 @@ void main() {
     expect(loadErrors, 1);
   });
 
+  test('onDownloadStart маршрутизируется на колбэк', () async {
+    final browser = SimpleNativeBrowser();
+    final downloads = <Uri>[];
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('https://example.com'),
+        userAgent: 'ua',
+        onDownloadStart: downloads.add,
+      ),
+    );
+
+    await _sendNativeEvent('onDownloadStart', 'https://example.com/file.zip');
+
+    expect(downloads, [Uri.parse('https://example.com/file.zip')]);
+  });
+
   test('onClosed очищает активный запрос и вызывает колбэк', () async {
     final browser = SimpleNativeBrowser();
     var closed = false;

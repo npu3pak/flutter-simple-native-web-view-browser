@@ -184,6 +184,11 @@ class MethodChannelSimpleNativeWebViewBrowser
         if (url != null) {
           _callSafely(() => request?.onSchemeRedirect?.call(url));
         }
+      case 'onDownloadStart':
+        final url = Uri.tryParse(call.arguments as String? ?? '');
+        if (url != null) {
+          _callSafely(() => request?.onDownloadStart?.call(url));
+        }
       case 'onClosed':
         _closeFallbackTimer?.cancel();
         _activeRequest = null;

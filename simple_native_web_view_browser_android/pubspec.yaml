@@ -1,6 +1,6 @@
 name: simple_native_web_view_browser_android
 description: "Android implementation of simple_native_web_view_browser"
-version: 0.2.2
+version: 0.3.0
 publish_to: none
 
 environment:

@@ -504,4 +504,48 @@ void main() {
     expect(sentCookies, isEmpty,
         reason: 'кука не должна была сохраниться при enableCookiesAndroid=false');
   });
+
+  testWidgets('скачивание файла → onDownloadStart с адресом файла', (tester) async {
+    final browser = SimpleNativeBrowser();
+    final downloadUrl = Completer<Uri>();
+    final closed = Completer<void>();
+
+    // Локальный сервер отдаёт бинарный файл как attachment.
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) {
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.set(HttpHeaders.contentTypeHeader, 'application/octet-stream')
+        ..headers.set(
+          'content-disposition',
+          'attachment; filename="file.bin"',
+        )
+        ..add(List<int>.filled(1024, 1))
+        ..close();
+    });
+
+    await browser.open(
+      SimpleBrowserOpenRequest(
+        url: Uri.parse('http://127.0.0.1:${server.port}/file.bin'),
+        userAgent: 'integration-test-ua',
+        onDownloadStart: (url) {
+          if (!downloadUrl.isCompleted) {
+            downloadUrl.complete(url);
+          }
+        },
+        onClosed: () {
+          if (!closed.isCompleted) {
+            closed.complete();
+          }
+        },
+      ),
+    );
+
+    final url = await downloadUrl.future.timeout(const Duration(seconds: 20));
+    expect(url.path, '/file.bin');
+
+    await browser.close();
+    await closed.future.timeout(const Duration(seconds: 20));
+  });
 }

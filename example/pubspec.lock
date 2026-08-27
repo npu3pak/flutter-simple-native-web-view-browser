@@ -184,21 +184,21 @@ packages:
       path: "../simple_native_web_view_browser"
       relative: true
     source: path
-    version: "0.2.0"
+    version: "0.3.0"
   simple_native_web_view_browser_android:
     dependency: transitive
     description:
       path: "../simple_native_web_view_browser_android"
       relative: true
     source: path
-    version: "0.2.0"
+    version: "0.3.0"
   simple_native_web_view_browser_ios:
     dependency: transitive
     description:
       path: "../simple_native_web_view_browser_ios"
       relative: true
     source: path
-    version: "0.2.0"
+    version: "0.3.0"
   sky_engine:
     dependency: transitive
     description: flutter

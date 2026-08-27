@@ -105,6 +105,11 @@ class BrowserActivity : AppCompatActivity() {
         webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         applyCookieAcceptance()
         applyFileAccessSettings()
+        // Загрузка файлов не функция браузера: WebView не навигирует на
+        // download-контент, а сообщает адрес приложению.
+        webView.setDownloadListener { url, _, _, _, _ ->
+            SimpleNativeWebViewBrowserPlugin.sendEvent("onDownloadStart", url)
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -524,7 +529,10 @@ class BrowserActivity : AppCompatActivity() {
         // Возвращаем приём кук процесса в исходное состояние.
         previousAcceptCookie?.let { CookieManager.getInstance().setAcceptCookie(it) }
         webView.settings.javaScriptEnabled = false
-        webView.webViewClient = null
+        // Колбэки WebViewClient после destroy не обращаются к WebView:
+        // их единственная точка доступа — updateChromeState, защищённая
+        // флагом webViewDestroyed (сброс клиента невозможен — тип
+        // non-null в SDK 36).
         webViewDestroyed = true
         webView.removeAllViews()
         webView.destroy()

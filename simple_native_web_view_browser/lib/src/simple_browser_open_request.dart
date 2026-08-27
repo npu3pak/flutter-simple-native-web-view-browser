@@ -15,6 +15,12 @@ typedef SimpleBrowserOnLoadStop = void Function(Uri url);
 /// Обработчик закрытия браузера.
 typedef SimpleBrowserOnClosed = void Function();
 
+/// Обработчик попытки пользователя скачать файл.
+///
+/// Передаёт адрес файла; загрузку выполняет приложение — браузер
+/// не скачивает и не отображает такой контент.
+typedef SimpleBrowserOnDownloadStart = void Function(Uri url);
+
 /// Решает, что делать при повторном открытии, когда сессия уже активна.
 /// Принимает активный (старый) и новый запросы, возвращает действие.
 typedef SimpleBrowserReopenPolicyResolver = SimpleBrowserReopenPolicy Function(
@@ -74,6 +80,11 @@ class SimpleBrowserOpenRequest {
   /// Обработчик закрытия браузера.
   final SimpleBrowserOnClosed? onClosed;
 
+  /// Обработчик попытки пользователя скачать файл (например, ссылка
+  /// с `Content-Disposition: attachment`). Браузер не выполняет загрузку:
+  /// приложение получает адрес файла и само решает, что с ним делать.
+  final SimpleBrowserOnDownloadStart? onDownloadStart;
+
   /// Создаёт запрос; [userAgent] с символами CR/LF отклоняется.
   SimpleBrowserOpenRequest({
     required this.url,
@@ -89,6 +100,7 @@ class SimpleBrowserOpenRequest {
     this.onSchemeRedirect,
     this.onLoadStop,
     this.onClosed,
+    this.onDownloadStart,
   }) {
     if (userAgent != null &&
         (userAgent!.contains('\r') || userAgent!.contains('\n'))) {

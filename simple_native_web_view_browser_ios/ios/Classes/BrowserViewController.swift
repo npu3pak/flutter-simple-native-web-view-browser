@@ -17,7 +17,7 @@ enum BrowserUrlBarMode: String {
 /// фоном: корректно выглядят в светлой и тёмной теме на любой iOS 15+,
 /// без чёрных полос. Кнопки — плоские UIButton без фона и тени;
 /// disabled-вид обеспечивает UIKit (снижение непрозрачности).
-final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
   private var url: URL
   private var userAgent: String
   private let usePersistentCookieStore: Bool
@@ -524,6 +524,54 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       return
     }
     decisionHandler(.allow)
+  }
+
+  // MARK: - Загрузка файлов
+
+  /// Загрузка файла — не функция браузера: адрес передаётся приложению,
+  /// а навигация на файл отменяется.
+  ///
+  /// Путь 1 (iOS 14.5+): контент, который WKWebView не может показать
+  /// (`canShowMIMEType == false`), переводится в WKDownload, откуда
+  /// `download(_:decideDestinationUsing:)` сообщает приложению адрес
+  /// и отменяет загрузку.
+  /// Путь 2 (iOS 13–14.4 и edge-кейсы): главный кадр с MIME-типом,
+  /// отличным от text/*, — событие + отмена навигации.
+  func webView(
+    _ webView: WKWebView,
+    decidePolicyFor navigationResponse: WKNavigationResponse,
+    decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+  ) {
+    let response = navigationResponse.response
+    if #available(iOS 14.5, *), !navigationResponse.canShowMIMEType {
+      decisionHandler(.download)
+      return
+    }
+    if navigationResponse.isForMainFrame,
+       let url = response.url,
+       url.scheme != "file",
+       let mimeType = response.mimeType,
+       !mimeType.hasPrefix("text/") {
+      channel?.invokeMethod("onDownloadStart", arguments: url.absoluteString)
+      decisionHandler(.cancel)
+      return
+    }
+    decisionHandler(.allow)
+  }
+
+  /// Сообщает приложению адрес файла и отменяет нативную загрузку:
+  /// загрузку выполняет клиентское приложение.
+  @available(iOS 14.5, *)
+  func download(
+    _ download: WKDownload,
+    decideDestinationUsing response: URLResponse,
+    suggestedFilename: String,
+    completionHandler: @escaping (URL?) -> Void
+  ) {
+    if let url = response.url {
+      channel?.invokeMethod("onDownloadStart", arguments: url.absoluteString)
+    }
+    completionHandler(nil)
   }
 
   /// Состояние кнопок и адресной строки обновляем сразу после начала
