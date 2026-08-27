@@ -28,29 +28,18 @@
 
 ## Как подключить плагин
 
-Плагин распространяется в виде git-репозитория. Чтобы подключить его, склонируйте репозиторий в проект и укажите зависимость в файле `pubspec.yaml`.
+Плагин опубликован на pub.dev. Добавьте зависимость в файл `pubspec.yaml`:
 
-1. Склонируйте репозиторий плагина в подкаталог проекта, например `plugins/`:
+```yaml
+dependencies:
+  simple_native_web_view_browser: ^0.4.0
+```
 
-   ```bash
-   git clone https://github.com/npu3pak/flutter-simple-native-web-view-browser.git plugins/simple_native_web_view_browser
-   ```
+Выполните команду:
 
-2. Добавьте зависимость в `pubspec.yaml`:
-
-   ```yaml
-   dependencies:
-     simple_native_web_view_browser:
-       path: plugins/simple_native_web_view_browser/simple_native_web_view_browser
-   ```
-
-   Путь должен указывать на основную часть плагина — на папку, внутри которой есть файл `pubspec.yaml` с именем пакета `simple_native_web_view_browser`. Если вы склонировали репозиторий в другой каталог, укажите свой путь к этой папке.
-
-3. Выполните команду:
-
-   ```bash
-   flutter pub get
-   ```
+```bash
+flutter pub get
+```
 
 После этого плагин можно использовать в коде приложения.
 
