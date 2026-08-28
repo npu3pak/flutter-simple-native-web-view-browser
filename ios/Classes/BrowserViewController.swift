@@ -25,6 +25,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   private var urlBarMode: BrowserUrlBarMode
   private var enableDebugging: Bool
   private var allowFileAccess: Bool
+  private var isSharingAvailable: Bool
   private weak var channel: FlutterMethodChannel?
 
   private var webView: WKWebView!
@@ -34,6 +35,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
   private var bottomBarHeightConstraint: NSLayoutConstraint!
   private var topTitleLabel: UILabel?
   private var addressField: UITextField?
+  private var shareButton: UIButton!
   private var backButton: UIButton!
   private var forwardButton: UIButton!
   private var reloadButton: UIButton!
@@ -50,6 +52,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
     allowFileAccess: Bool,
+    isSharingAvailable: Bool,
     channel: FlutterMethodChannel?
   ) {
     self.url = url
@@ -59,6 +62,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     self.urlBarMode = urlBarMode
     self.enableDebugging = enableDebugging
     self.allowFileAccess = allowFileAccess
+    self.isSharingAvailable = isSharingAvailable
     self.channel = channel
     super.init(nibName: nil, bundle: nil)
   }
@@ -168,7 +172,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     initialCookies: [[String: Any]],
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
-    allowFileAccess: Bool
+    allowFileAccess: Bool,
+    isSharingAvailable: Bool
   ) {
     self.url = url
     self.userAgent = userAgent
@@ -176,7 +181,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     self.urlBarMode = urlBarMode
     self.enableDebugging = enableDebugging
     self.allowFileAccess = allowFileAccess
+    self.isSharingAvailable = isSharingAvailable
     schemeRedirectNotified = false
+    shareButton.isHidden = !isSharingAvailable
 
     if userAgent.isEmpty {
       webView.customUserAgent = nil
@@ -201,6 +208,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
     allowFileAccess: Bool,
+    isSharingAvailable: Bool,
     result: @escaping FlutterResult
   ) {
     applyReopenSettings(
@@ -209,7 +217,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       initialCookies: initialCookies,
       urlBarMode: urlBarMode,
       enableDebugging: enableDebugging,
-      allowFileAccess: allowFileAccess)
+      allowFileAccess: allowFileAccess,
+      isSharingAvailable: isSharingAvailable)
 
     setCookies(initialCookies, hostUrl: url) { [weak self] in
       guard let self = self else { return }
@@ -227,6 +236,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     urlBarMode: BrowserUrlBarMode,
     enableDebugging: Bool,
     allowFileAccess: Bool,
+    isSharingAvailable: Bool,
     result: @escaping FlutterResult
   ) {
     applyReopenSettings(
@@ -235,7 +245,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       initialCookies: initialCookies,
       urlBarMode: urlBarMode,
       enableDebugging: enableDebugging,
-      allowFileAccess: allowFileAccess)
+      allowFileAccess: allowFileAccess,
+      isSharingAvailable: isSharingAvailable)
     // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
     setCookies(initialCookies, hostUrl: url) {
       result(nil)
@@ -277,12 +288,23 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
       width: 32,
       pointSize: 20)
 
-    // Пустой плейсхолдер справа, равный по ширине крестику: заголовок
-    // и адресная строка центрируются относительно всего экрана.
-    let placeholder = UIView()
-    placeholder.translatesAutoresizingMaskIntoConstraints = false
+    // Правый слот, равный по ширине крестику: заголовок и адресная строка
+    // центрируются относительно всего экрана. Внутри — кнопка «Поделиться»
+    // (при выключенном isSharingAvailable слот остаётся пустым, центрирование
+    // не меняется).
+    let rightSlot = UIView()
+    rightSlot.translatesAutoresizingMaskIntoConstraints = false
 
-    topStack = UIStackView(arrangedSubviews: [closeButton, placeholder])
+    shareButton = makeBarButton(
+      "square.and.arrow.up",
+      action: #selector(shareTapped),
+      width: 32,
+      pointSize: 20)
+    shareButton.translatesAutoresizingMaskIntoConstraints = false
+    shareButton.isHidden = !isSharingAvailable
+    rightSlot.addSubview(shareButton)
+
+    topStack = UIStackView(arrangedSubviews: [closeButton, rightSlot])
     topStack.translatesAutoresizingMaskIntoConstraints = false
     topStack.axis = .horizontal
     topStack.spacing = 8
@@ -299,7 +321,15 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         equalTo: topBar.safeAreaLayoutGuide.trailingAnchor,
         constant: -16),
       topStack.heightAnchor.constraint(equalToConstant: 44),
-      placeholder.widthAnchor.constraint(equalTo: closeButton.widthAnchor),
+      rightSlot.widthAnchor.constraint(equalTo: closeButton.widthAnchor),
+      // Высота слота обязательна: при нулевой высоте (intrinsic у пустого
+      // UIView = 0) тач-точки кнопки «Поделиться» выходят за bounds слота,
+      // и hit-testing её не находит.
+      rightSlot.heightAnchor.constraint(equalTo: topStack.heightAnchor),
+      shareButton.centerXAnchor.constraint(equalTo: rightSlot.centerXAnchor),
+      shareButton.centerYAnchor.constraint(equalTo: rightSlot.centerYAnchor),
+      // Кнопка растягивается на всю высоту панели — крупная тач-зона.
+      shareButton.heightAnchor.constraint(equalTo: rightSlot.heightAnchor),
     ])
   }
 
@@ -434,6 +464,21 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
   @objc private func reloadTapped() {
     webView.reload()
+  }
+
+  /// Стандартный системный шеринг адреса текущей страницы. На iPad
+  /// поповер обязателен: якорь — кнопка «Поделиться» на верхней панели.
+  @objc private func shareTapped() {
+    let urlToShare = webView.url ?? url
+    let activityController = UIActivityViewController(
+      activityItems: [urlToShare],
+      applicationActivities: nil)
+    if let popover = activityController.popoverPresentationController {
+      popover.sourceView = shareButton
+      popover.sourceRect = shareButton.bounds
+      popover.permittedArrowDirections = .up
+    }
+    present(activityController, animated: true)
   }
 
   @objc private func addressBarSubmitted() {

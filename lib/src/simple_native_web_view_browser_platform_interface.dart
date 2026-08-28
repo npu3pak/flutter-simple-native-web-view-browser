@@ -130,6 +130,7 @@ class MethodChannelSimpleNativeWebViewBrowser
       'enableDebugging': enableDebugging,
       'enableCookiesAndroid': request.enableCookiesAndroid,
       'allowFileAccess': request.allowFileAccess,
+      'isSharingAvailable': request.isSharingAvailable,
     };
   }
 

@@ -56,6 +56,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
           rawValue: args["urlBarMode"] as? String ?? "hidden") ?? .hidden,
         enableDebugging: args["enableDebugging"] as? Bool ?? false,
         allowFileAccess: args["allowFileAccess"] as? Bool ?? false,
+        isSharingAvailable: args["isSharingAvailable"] as? Bool ?? false,
         result: result)
 
     case "reloadWithCookies":
@@ -98,6 +99,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       rawValue: args["urlBarMode"] as? String ?? "hidden") ?? .hidden
     let enableDebugging = args["enableDebugging"] as? Bool ?? false
     let allowFileAccess = args["allowFileAccess"] as? Bool ?? false
+    let isSharingAvailable = args["isSharingAvailable"] as? Bool ?? false
 
     // Повторное открытие: заменяем сессию в существующем браузере.
     if let browserViewController = browserViewController {
@@ -108,6 +110,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
         urlBarMode: urlBarMode,
         enableDebugging: enableDebugging,
         allowFileAccess: allowFileAccess,
+        isSharingAvailable: isSharingAvailable,
         result: result)
       return
     }
@@ -141,6 +144,7 @@ public class SimpleNativeWebViewBrowserPlugin: NSObject, FlutterPlugin {
       urlBarMode: urlBarMode,
       enableDebugging: enableDebugging,
       allowFileAccess: allowFileAccess,
+      isSharingAvailable: isSharingAvailable,
       channel: channel)
     controller.onClosed = { [weak self] in
       self?.browserViewController = nil

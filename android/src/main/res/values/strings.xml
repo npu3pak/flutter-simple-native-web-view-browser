@@ -4,4 +4,5 @@
     <string name="browser_back">Назад</string>
     <string name="browser_forward">Вперёд</string>
     <string name="browser_reload">Обновить</string>
+    <string name="browser_share">Поделиться</string>
 </resources>

@@ -53,9 +53,24 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <View
+        <!-- Правый слот, равный по ширине крестику: заголовок и адресная
+             строка центрируются относительно всего экрана. Внутри — кнопка
+             «Поделиться» (при выключенном isSharingAvailable слот остаётся
+             пустым, центрирование не меняется). -->
+        <FrameLayout
             android:layout_width="48dp"
-            android:layout_height="48dp" />
+            android:layout_height="48dp">
+
+            <ImageButton
+                android:id="@+id/shareButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_share"
+                android:contentDescription="@string/browser_share"
+                android:visibility="gone"
+                app:tint="?attr/colorControlNormal" />
+        </FrameLayout>
     </LinearLayout>
 
     <WebView

@@ -98,6 +98,7 @@ class SimpleNativeWebViewBrowserPlugin :
             enableDebugging = call.argument<Boolean>("enableDebugging") ?: false,
             enableCookiesAndroid = call.argument<Boolean>("enableCookiesAndroid") ?: true,
             allowFileAccess = call.argument<Boolean>("allowFileAccess") ?: false,
+            isSharingAvailable = call.argument<Boolean>("isSharingAvailable") ?: false,
         )
         result.success(null)
     }
@@ -116,6 +117,7 @@ class SimpleNativeWebViewBrowserPlugin :
         val enableDebugging = call.argument<Boolean>("enableDebugging") ?: false
         val enableCookiesAndroid = call.argument<Boolean>("enableCookiesAndroid") ?: true
         val allowFileAccess = call.argument<Boolean>("allowFileAccess") ?: false
+        val isSharingAvailable = call.argument<Boolean>("isSharingAvailable") ?: false
 
         // Повторное открытие: заменяем сессию в существующем браузере.
         BrowserActivity.current?.let { current ->
@@ -127,6 +129,7 @@ class SimpleNativeWebViewBrowserPlugin :
                 enableDebugging = enableDebugging,
                 enableCookiesAndroid = enableCookiesAndroid,
                 allowFileAccess = allowFileAccess,
+                isSharingAvailable = isSharingAvailable,
             )
             result.success(null)
             return
@@ -166,6 +169,10 @@ class SimpleNativeWebViewBrowserPlugin :
             putExtra(
                 BrowserActivity.EXTRA_ALLOW_FILE_ACCESS,
                 allowFileAccess,
+            )
+            putExtra(
+                BrowserActivity.EXTRA_IS_SHARING_AVAILABLE,
+                isSharingAvailable,
             )
         }
         context.startActivity(intent)

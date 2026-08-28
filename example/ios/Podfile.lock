@@ -2,7 +2,7 @@ PODS:
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
-  - simple_native_web_view_browser (0.4.0):
+  - simple_native_web_view_browser (0.5.0):
     - Flutter
 
 DEPENDENCIES:
@@ -21,7 +21,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
-  simple_native_web_view_browser: a60c5bb4bbf3c1797dceae355b024e81a51d25f6
+  simple_native_web_view_browser: 43ec2c22fd878bee4916a5db56cee81ce4b20ab6
 
 PODFILE CHECKSUM: 251cb053df7158f337c0712f2ab29f4e0fa474ce
 

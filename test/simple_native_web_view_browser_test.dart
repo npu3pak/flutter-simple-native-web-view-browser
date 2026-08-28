@@ -48,6 +48,7 @@ void main() {
           ),
         ],
         urlBarMode: SimpleBrowserUrlBarMode.readOnly,
+        isSharingAvailable: true,
       ),
     );
 
@@ -62,6 +63,7 @@ void main() {
     expect(args['urlBarMode'], 'readOnly');
     expect(args['enableCookiesAndroid'], true);
     expect(args['allowFileAccess'], false);
+    expect(args['isSharingAvailable'], true);
     final cookies = args['initialCookies'] as List<Object?>;
     expect(cookies, hasLength(1));
     final cookie = cookies.single as Map<Object?, Object?>;
@@ -99,6 +101,17 @@ void main() {
     final args = outgoingCalls.single.arguments as Map<Object?, Object?>;
     expect(args['enableCookiesAndroid'], false);
     expect(args['allowFileAccess'], true);
+  });
+
+  test('isSharingAvailable по умолчанию выключен', () async {
+    final browser = SimpleNativeBrowser();
+    await browser.open(
+      SimpleBrowserOpenRequest(url: Uri.parse('https://example.com')),
+    );
+
+    expect(outgoingCalls, hasLength(1));
+    final args = outgoingCalls.single.arguments as Map<Object?, Object?>;
+    expect(args['isSharingAvailable'], false);
   });
 
   test('close и reloadWithCookies отправляют корректные вызовы', () async {
@@ -405,6 +418,7 @@ void main() {
       SimpleBrowserOpenRequest(
         url: Uri.parse('https://example.com/settings'),
         userAgent: 'ua',
+        isSharingAvailable: true,
         reopenPolicy: (_, _) =>
             SimpleBrowserReopenPolicy.replaceCallbacksAndSettings,
       ),
@@ -413,6 +427,7 @@ void main() {
     expect(outgoingCalls.last.method, 'reopenSettings');
     final args = outgoingCalls.last.arguments as Map<Object?, Object?>;
     expect(args['url'], 'https://example.com/settings');
+    expect(args['isSharingAvailable'], true);
   });
 
   test('полная замена при ошибке канала не восстанавливает предыдущий запрос', () async {

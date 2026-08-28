@@ -63,6 +63,13 @@ class SimpleBrowserOpenRequest {
   /// платформах и передаются приложению через `onSchemeRedirect`.
   final bool allowFileAccess;
 
+  /// Показывать стандартную кнопку «Поделиться» на верхней панели
+  /// справа от заголовка/адресной строки.
+  ///
+  /// Кнопка открывает системный шеринг и передаёт ему адрес текущей
+  /// страницы браузера.
+  final bool isSharingAvailable;
+
   /// Поведение при повторном открытии, когда браузер уже открыт.
   /// Если не задан — применяется полная замена сессии
   /// (SimpleBrowserReopenPolicy.replaceCallbacksAndSettingsAndReload).
@@ -95,6 +102,7 @@ class SimpleBrowserOpenRequest {
     this.enableDebugging = false,
     this.enableCookiesAndroid = true,
     this.allowFileAccess = false,
+    this.isSharingAvailable = false,
     this.reopenPolicy,
     this.onLoadError,
     this.onSchemeRedirect,

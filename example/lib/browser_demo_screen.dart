@@ -49,6 +49,7 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
   SimpleBrowserUrlBarMode _urlBarMode = SimpleBrowserUrlBarMode.hidden;
   var _usePersistentCookieStore = true;
   var _autoReloadWithCookies = false;
+  var _isSharingAvailable = false;
   var _browserOpen = false;
   Timer? _reloadTimer;
 
@@ -121,6 +122,7 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
           initialCookies: cookies,
           urlBarMode: _urlBarMode,
           enableDebugging: true,
+          isSharingAvailable: _isSharingAvailable,
           onLoadStop: (u) => _handleUrl(u, 'onLoadStop'),
           onLoadError: (u) => _handleUrl(u, 'onLoadError'),
           onSchemeRedirect: (u) => _handleUrl(u, 'onSchemeRedirect'),
@@ -133,7 +135,8 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
       _browserOpen = true;
       _addLog('[open] браузер открыт: '
           '${_urlController.text.trim()} (mode=$_urlBarMode, '
-          'persistent=$_usePersistentCookieStore, cookies=${cookies.length})');
+          'persistent=$_usePersistentCookieStore, cookies=${cookies.length}, '
+          'sharing=$_isSharingAvailable)');
 
       if (_autoReloadWithCookies && cookies.isNotEmpty) {
         _reloadTimer = Timer(const Duration(seconds: 5), () async {
@@ -271,6 +274,13 @@ class _BrowserDemoScreenState extends State<BrowserDemoScreen> {
             title: const Text('Авто reloadWithCookies через 5 секунд'),
             value: _autoReloadWithCookies,
             onChanged: (value) => setState(() => _autoReloadWithCookies = value),
+          ),
+          SwitchListTile(
+            key: const ValueKey('shareSwitch'),
+            dense: true,
+            title: const Text('Кнопка «Поделиться» (isSharingAvailable)'),
+            value: _isSharingAvailable,
+            onChanged: (value) => setState(() => _isSharingAvailable = value),
           ),
           const SizedBox(height: 16),
           Wrap(

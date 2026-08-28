@@ -1,6 +1,7 @@
 package ru.example.simple_native_web_view_browser
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -42,6 +43,7 @@ class BrowserActivity : AppCompatActivity() {
         const val EXTRA_ENABLE_DEBUGGING = "enableDebugging"
         const val EXTRA_ENABLE_COOKIES = "enableCookiesAndroid"
         const val EXTRA_ALLOW_FILE_ACCESS = "allowFileAccess"
+        const val EXTRA_IS_SHARING_AVAILABLE = "isSharingAvailable"
 
         /** Текущая открытая Activity (единственный экземпляр браузера). */
         var current: BrowserActivity? = null
@@ -60,6 +62,7 @@ class BrowserActivity : AppCompatActivity() {
     private var enableDebugging = false
     private var enableCookiesAndroid = true
     private var allowFileAccess = false
+    private var isSharingAvailable = false
     private var closedNotified = false
 
     /** Предыдущее значение приёма кук процесса — восстанавливается в onDestroy. */
@@ -87,6 +90,7 @@ class BrowserActivity : AppCompatActivity() {
         enableDebugging = extras.getBoolean(EXTRA_ENABLE_DEBUGGING, false)
         enableCookiesAndroid = extras.getBoolean(EXTRA_ENABLE_COOKIES, true)
         allowFileAccess = extras.getBoolean(EXTRA_ALLOW_FILE_ACCESS, false)
+        isSharingAvailable = extras.getBoolean(EXTRA_IS_SHARING_AVAILABLE, false)
 
         setContentView(R.layout.browser_activity)
 
@@ -190,6 +194,26 @@ class BrowserActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.reloadButton).setOnClickListener {
             webView.reload()
         }
+        findViewById<ImageButton>(R.id.shareButton).also {
+            it.setOnClickListener { sharePage() }
+            applyShareButtonVisibility()
+        }
+    }
+
+    /** Видимость кнопки «Поделиться» по настройке isSharingAvailable. */
+    private fun applyShareButtonVisibility() {
+        findViewById<ImageButton>(R.id.shareButton)?.visibility =
+            if (isSharingAvailable) View.VISIBLE else View.GONE
+    }
+
+    /** Системный шеринг адреса текущей страницы. */
+    private fun sharePage() {
+        val urlToShare = webView.url ?: url
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, urlToShare)
+        }
+        startActivity(Intent.createChooser(sendIntent, null))
     }
 
     /// Применяет режим адресной строки (заголовок или адресное поле).
@@ -331,12 +355,14 @@ class BrowserActivity : AppCompatActivity() {
         enableDebugging: Boolean,
         enableCookiesAndroid: Boolean,
         allowFileAccess: Boolean,
+        isSharingAvailable: Boolean,
     ) {
         this.url = url
         this.urlBarMode = urlBarMode
         this.enableDebugging = enableDebugging
         this.enableCookiesAndroid = enableCookiesAndroid
         this.allowFileAccess = allowFileAccess
+        this.isSharingAvailable = isSharingAvailable
         this.initialCookies.clear()
         this.initialCookies.addAll(initialCookies)
         schemeRedirectNotified = false
@@ -351,6 +377,7 @@ class BrowserActivity : AppCompatActivity() {
         WebView.setWebContentsDebuggingEnabled(enableDebugging)
         applyCookieAcceptance()
         applyFileAccessSettings()
+        applyShareButtonVisibility()
         applyUrlBarMode()
     }
 
@@ -363,10 +390,11 @@ class BrowserActivity : AppCompatActivity() {
         enableDebugging: Boolean,
         enableCookiesAndroid: Boolean,
         allowFileAccess: Boolean,
+        isSharingAvailable: Boolean,
     ) {
         applyReopenSettings(
             url, userAgent, initialCookies, urlBarMode, enableDebugging,
-            enableCookiesAndroid, allowFileAccess,
+            enableCookiesAndroid, allowFileAccess, isSharingAvailable,
         )
 
         val scheme = Uri.parse(url).scheme?.lowercase()
@@ -388,10 +416,11 @@ class BrowserActivity : AppCompatActivity() {
         enableDebugging: Boolean,
         enableCookiesAndroid: Boolean,
         allowFileAccess: Boolean,
+        isSharingAvailable: Boolean,
     ) {
         applyReopenSettings(
             url, userAgent, initialCookies, urlBarMode, enableDebugging,
-            enableCookiesAndroid, allowFileAccess,
+            enableCookiesAndroid, allowFileAccess, isSharingAvailable,
         )
         // Куки применяются к хранилищу; вступят в силу при следующей загрузке.
         setCookies(this.initialCookies, url) { }
